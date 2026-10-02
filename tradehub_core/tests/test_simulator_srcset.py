@@ -366,14 +366,24 @@ class SimulatorTablosu(unittest.TestCase):
 				self.assertGreater(s.css_box_px, 0)
 
 	def test_sinirsiz_kaynakta_yetersizlik_yok(self):
-		"""Politikadaki merdiven, 65 kombinasyonun HEPSİNİ karşılamalı.
+		"""Politikadaki merdivenin yetmediği kombinasyonlar BİLİNEN küme olmalı.
 
-		Bu, Faz 2'de seçilen genişliklerin (96…1920) yeterliliğinin makine
-		kanıtıdır. Bir gün yeni bir cihaz ya da bölge eklenip merdiven
-		yetmezse bu test kırılır — sessizce bulanık görsel servis edilmez.
+		Faz 2'nin 96…1920 merdiveni 65 kombinasyonun hepsini karşılıyordu.
+		2026-09-30 kullanıcı kararıyla merdiven 192/384/768/1280'e indi; en büyük
+		basamak 1280 olduğu için ürün detay ana görselinde üç yüksek-DPR cihaz
+		tam yoğunluğu alamıyor. Küme dışına taşan her yeni yetersizlik bu testi
+		kırar — sessizce bulanık görsel servis edilmez.
 		"""
-		yetersiz = [f"{s.device.id}×{s.region.key}" for s in self.sonuc if not s.sufficient]
-		self.assertEqual(yetersiz, [], f"merdiven yetmiyor: {yetersiz}")
+		yetersiz = sorted(f"{s.device.id}×{s.region.key}" for s in self.sonuc if not s.sufficient)
+		self.assertEqual(
+			yetersiz,
+			[
+				"ipad-mini-6×product_detail/main_image",
+				"ipad-pro-11×product_detail/main_image",
+				"iphone-15-pro-max×product_detail/main_image",
+			],
+			f"merdiven yetmiyor: {yetersiz}",
+		)
 
 	def test_zoom_acigi_yalniz_urun_detay_masaustunde(self):
 		"""1,85× hover-zoom, `sizes` ile seçilen türevin ötesinde piksel ister."""
@@ -393,13 +403,30 @@ class SimulatorTablosu(unittest.TestCase):
 		# merdiven basamağı artık fazla iniyor; yani aşırı servis zaten VARDI,
 		# katalog onu göremiyordu. Düzeltilmesi merdivenin alt ucuna basamak
 		# eklemeyi gerektirir — ayrı bir iş.
+		# 2026-09-30: merdiven 192/384/768/1280'e indi (w96 ve w640 kalktı);
+		# küçük kutular bir üst basamağı indiriyor, küme 3 → 15. Kullanıcı
+		# kararının bilinen bedeli (admin-panel srcsetParity.test.js ile aynı).
 		self.assertEqual(
 			asan,
-			[
-				"desktop-1080p×seller_shop/product_grid",
-				"desktop-1440p×seller_shop/product_grid",
-				"moto-g-power×cart_checkout/summary_strip",
-			],
+			sorted(
+				[
+					"galaxy-s23×home/hero_showcase_grid",
+					"ipad-mini-6×home/hero_showcase_grid",
+					"macbook-air-13×home/hero_showcase_grid",
+					"macbook-pro-16×home/hero_showcase_grid",
+					"galaxy-s23×listing/card_grid",
+					"macbook-air-13×listing/card_grid",
+					"macbook-pro-16×product_detail/main_image",
+					"galaxy-s23×seller_shop/product_grid",
+					"iphone-14×seller_shop/product_grid",
+					"ipad-mini-6×seller_shop/product_grid",
+					"ipad-pro-11-landscape×seller_shop/product_grid",
+					"macbook-air-13×seller_shop/product_grid",
+					"macbook-pro-16×seller_shop/product_grid",
+					"desktop-1080p×seller_shop/product_grid",
+					"desktop-1440p×seller_shop/product_grid",
+				]
+			),
 		)
 
 	def test_determinist(self):

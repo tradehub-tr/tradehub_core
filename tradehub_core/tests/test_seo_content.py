@@ -37,6 +37,12 @@ class TestSeoContent(unittest.TestCase):
 		self.assertFalse(ok)
 		self.assertIn(str(TITLE_MIN_CHARS), msg)
 
+	def test_title_alt_sinir_34(self):
+		# Satıcı kararı (2026-10-02): en az 34 karakter. 33 reddedilir, 34 geçer.
+		self.assertEqual(TITLE_MIN_CHARS, 34)
+		self.assertFalse(check_title("a" * 33)[0])
+		self.assertTrue(check_title("a" * 34)[0])
+
 	def test_title_bos_reddedilir(self):
 		ok, msg = check_title("   ")
 		self.assertFalse(ok)

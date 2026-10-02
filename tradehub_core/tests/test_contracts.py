@@ -677,7 +677,12 @@ class PolicyContractTest(unittest.TestCase):
 				self.assertTrue(karar.allowed, karar.violations)
 
 	def test_geometri_bagil_oran_toleransi(self):
-		"""FR-016 — 4:5 tam oran geçer, 1000x1400 (0,714) reddedilir."""
+		"""FR-016 — GÜNCELLENDİ 2026-09-29 (kare kuralı): reddetme yok.
+		`require.allowed_ratios`/`ratio_tolerance` `product-image.json`'dan
+		kaldırıldı (ürüne bağlanan görsel artık kare 1000–2000 px beyaz dolguya
+		otomatik çevriliyor, media/kare.py); 4:5 hâlâ geçer, 1000x1400 (0,714)
+		artık DA geçer. `not`: "2026-09-29 kare kuralı: reddetme yok".
+		"""
 		for ad, motor in self._motorlar():
 			with self.subTest(uygulama=ad):
 				self.assertTrue(
@@ -685,20 +690,22 @@ class PolicyContractTest(unittest.TestCase):
 						"product.image", image_c.ImageProbe(fmt="JPEG", width=1000, height=1250)
 					).allowed
 				)
-				kotu = motor.check_geometry(
+				artik_iyi = motor.check_geometry(
 					"product.image", image_c.ImageProbe(fmt="JPEG", width=1000, height=1400)
 				)
-				self.assertFalse(kotu.allowed)
-				self.assertEqual(kotu.first_code, "product_image_ratio_not_allowed")
+				self.assertTrue(artik_iyi.allowed)
 
 	def test_geometri_kisa_kenar_ve_adet(self):
+		"""GÜNCELLENDİ 2026-09-29 (kare kuralı): reddetme yok. `require.min_short_edge`
+		kaldırıldı — 640×640 artık geçer. `max_count` (adet sınırı) DEĞİŞMEDİ,
+		hâlâ engelliyor. `not`: "2026-09-29 kare kuralı: reddetme yok".
+		"""
 		for ad, motor in self._motorlar():
 			with self.subTest(uygulama=ad):
-				kucuk = motor.check_geometry(
+				artik_kucuk_de_gecer = motor.check_geometry(
 					"product.image", image_c.ImageProbe(fmt="JPEG", width=640, height=640)
 				)
-				self.assertFalse(kucuk.allowed)
-				self.assertEqual(kucuk.first_code, "product_image_short_edge_too_small")
+				self.assertTrue(artik_kucuk_de_gecer.allowed)
 				cok = motor.check_geometry(
 					"product.image",
 					image_c.ImageProbe(fmt="JPEG", width=1000, height=1000),

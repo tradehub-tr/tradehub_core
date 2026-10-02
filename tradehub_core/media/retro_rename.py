@@ -959,12 +959,61 @@ def _rollback_one(row: frappe._dict) -> dict:
 	}
 
 
+def _hedefe_iyilestir(row: frappe._dict) -> bool:
+	"""Kaynak adrese hâlâ canlı referans varsa silmeden önce hedefe çevir.
+
+	Dönüş `True`: satır silinebilir. `False`: canlı referans var ama hedef
+	diskte yok (ya da çevrilemedi) — satır KALIR, silinirse ilan kayıp dosyayı
+	gösterirdi (kare C1, final review). Bayat form eski adresi geri yazmış
+	olabilir; `refs.retarget` ham UPDATE olduğu için `modified` değişmiyor.
+	"""
+	canli = [r for r in refs.find(row.source_url) if not r["readonly"]]
+	if not canli:
+		return True
+	try:
+		hedef_var = bool(row.target_url) and os.path.isfile(_disk_path(row.target_url))
+	except Exception:
+		hedef_var = False
+	if hedef_var:
+		sonuc = refs.retarget(row.source_url, row.target_url)
+		if not [r for r in refs.find(row.source_url) if not r["readonly"]]:
+			_invalidate_url_caches(row.source_url, row.target_url)
+			return True
+		frappe.log_error(
+			title=f"301 silinmedi: canlı referans çevrilemedi {row.source_url}",
+			message=json.dumps(sonuc.get("skipped") or [], ensure_ascii=False),
+		)
+		return False
+	frappe.log_error(
+		title=f"301 silinmedi: canlı referans var, hedef diskte yok {row.source_url}",
+		message=f"target={row.target_url}",
+	)
+	return False
+
+
 def purge_expired_redirects() -> int:
-	"""Günlük cron: süresi dolan 301 satırlarını sil (sonrası 404)."""
-	adlar = frappe.get_all("Media URL Redirect", filters={"expires_at": ("<", now_datetime())}, pluck="name")
-	for ad in adlar:
-		frappe.delete_doc("Media URL Redirect", ad, ignore_permissions=True, force=True)
-	if adlar:
+	"""Günlük cron: süresi dolan 301 satırlarını sil (sonrası 404).
+
+	Kaynak adrese hâlâ canlı referans varsa önce hedefe iyileştirilir; hedef
+	yoksa satır silinmez (bkz. `_hedefe_iyilestir`).
+	"""
+	satirlar = frappe.get_all(
+		"Media URL Redirect",
+		filters={"expires_at": ("<", now_datetime())},
+		fields=["name", "source_url", "target_url"],
+	)
+	silinen = 0
+	korunan = 0
+	for row in satirlar:
+		if not _hedefe_iyilestir(row):
+			korunan += 1
+			continue
+		frappe.delete_doc("Media URL Redirect", row.name, ignore_permissions=True, force=True)
+		silinen += 1
+	if satirlar:
 		frappe.db.commit()
-		audit.log_media_batch(action=audit.ACTION_RETRO_RENAME, summary={"purged_redirects": len(adlar)})
-	return len(adlar)
+		audit.log_media_batch(
+			action=audit.ACTION_RETRO_RENAME,
+			summary={"purged_redirects": silinen, "kept_live_refs": korunan},
+		)
+	return silinen

@@ -117,6 +117,18 @@ EXTENSION = {"webp": ".webp", "avif": ".avif", "jpeg": ".jpg", "png": ".png"}
 DEFAULT_PAD_COLOR: str = "#FFFFFF"
 TRANSPARENT: str = "transparent"
 
+DEFAULT_OUTPUT_DPI: int = 72
+"""Kaynak DPI taşımıyorsa türeve yazılan DPI — `normalize.DEFAULT_DPI_OUT` ile aynı
+(ekran medyası; piksel ölçüsünü etkilemez). Kaynağın DPI'ı varsa O kopyalanır."""
+
+SOURCE_DPI_INFO_KEY: str = "th_source_dpi"
+"""`prepare_source` kaynağın DPI'ını hazırlanmış görüntünün `info`suna bu anahtarla
+koyar: `exif_transpose`/kip dönüşümü yeni `Image` döndürür ve `dpi`yi taşımayabilir."""
+
+EXIF_X_RESOLUTION: int = 0x011A
+EXIF_Y_RESOLUTION: int = 0x011B
+EXIF_RESOLUTION_UNIT: int = 0x0128
+
 # Not kodları — raporda (report.py) Türkçe karşılıklarına çevrilir.
 NOTE_UNDER_SPEC: str = "under_spec"
 NOTE_ALPHA_FLATTENED: str = "alpha_flattened"
@@ -501,6 +513,7 @@ def prepare_source(src) -> tuple:
 	Image, ImageOps = _pil()
 	im = _open(src)
 	icc = im.info.get("icc_profile")
+	kaynak_dpi = _source_dpi(im)
 	notes: list = []
 
 	orientation = 1
@@ -534,7 +547,48 @@ def prepare_source(src) -> tuple:
 
 	if icc:
 		notes.append(NOTE_ICC_KEPT)
+	if kaynak_dpi:
+		im.info[SOURCE_DPI_INFO_KEY] = kaynak_dpi
 	return im, icc, tuple(notes)
+
+
+def _source_dpi(im) -> int:
+	"""Kaynağın beyan ettiği DPI (konteyner ya da EXIF); yoksa 0. İstisna atmaz."""
+	try:
+		native = im.info.get("dpi")
+		if native and len(native) >= 2 and float(native[0]) > 0:
+			return round(float(native[0]))
+		exif = im.getexif()
+		x = exif.get(EXIF_X_RESOLUTION)
+		if x and int(exif.get(EXIF_RESOLUTION_UNIT, 2) or 2) == 2:
+			deger = float(x[0]) / float(x[1]) if isinstance(x, tuple) else float(x)
+			return round(deger) if deger > 0 else 0
+	except Exception:  # noqa: BLE001 — bozuk DPI etiketi üretimi durdurmaz
+		return 0
+	return 0
+
+
+@cache
+def _srgb_icc() -> bytes | None:
+	"""Gömülecek sRGB profili (`normalize._srgb_profile_bytes` ile aynı üretim)."""
+	try:
+		from PIL import ImageCms
+
+		return ImageCms.ImageCmsProfile(ImageCms.createProfile("sRGB")).tobytes()
+	except Exception:  # noqa: BLE001 — ImageCms yoksa profil UYDURULMAZ
+		return None
+
+
+def _resolution_exif(dpi: int) -> bytes:
+	"""Yalnız X/YResolution + ResolutionUnit taşıyan EXIF bloğu (başka etiket yok)."""
+	from fractions import Fraction
+
+	Image, _ = _pil()
+	exif = Image.Exif()
+	exif[EXIF_X_RESOLUTION] = Fraction(int(dpi), 1)
+	exif[EXIF_Y_RESOLUTION] = Fraction(int(dpi), 1)
+	exif[EXIF_RESOLUTION_UNIT] = 2  # inç
+	return exif.tobytes()
 
 
 def has_alpha(im) -> bool:
@@ -680,9 +734,21 @@ def build_canvas(im, profile: RenditionProfile, plan: GeometryPlan) -> tuple:
 
 
 def encode(
-	im, fmt: str, quality: Any, *, icc: bytes | None = None, pad_color: str = DEFAULT_PAD_COLOR
+	im,
+	fmt: str,
+	quality: Any,
+	*,
+	icc: bytes | None = None,
+	pad_color: str = DEFAULT_PAD_COLOR,
+	dpi: int | None = None,
 ) -> tuple:
 	"""Tek encode. Dönüş `(bytes, notes)`. Deterministiktir.
+
+	`dpi` verilirse dosyaya yazılır: JPEG/PNG kendi konteyner alanında, WebP/AVIF
+	yalnız çözünürlük etiketlerini taşıyan bir EXIF bloğunda (Pillow bu iki
+	biçimde `dpi=`'yi sessizce yok sayar — `dpi.py` başlığı). Kaynak ICC profili
+	yoksa çıktıya sRGB profili gömülür: boru hattının renk hedefi sRGB ve
+	etiketsiz dosyanın renk uzayı dosyadan okunamaz.
 
 	`quality` `"lossless"` ise kayıpsız kip seçilir (WebP `lossless=True`,
 	PNG zaten kayıpsız, AVIF `quality=100`). AVIF'in gerçekten kayıpsız olması
@@ -706,8 +772,16 @@ def encode(
 		out_im = im.convert("RGB")
 
 	kw: dict = {}
+	# `icc=b""` = politika ICC'yi siliyor (`strip_metadata.icc`) — sRGB de gömülmez.
+	if icc is None and out_im.mode in ("RGB", "RGBA"):
+		icc = _srgb_icc()
 	if icc:
 		kw["icc_profile"] = icc
+	if dpi and int(dpi) > 0:
+		if pil_fmt in ("JPEG", "PNG"):
+			kw["dpi"] = (int(dpi), int(dpi))
+		else:
+			kw["exif"] = _resolution_exif(int(dpi))
 
 	lossless = quality == LOSSLESS
 	buf = io.BytesIO()
@@ -767,8 +841,30 @@ def ssim_measurement_mode(canvas_size: tuple[int, int]) -> tuple[str, bool]:
 	return backend, (not numpy_var and piksel > ssim_mod.PURE_MAX_PIXELS)
 
 
+#: `quality.rendition_quality_mode` değeri (şema v1.5.0): türev SSIM araması
+#: yapmadan profilin `encoder_quality` değeriyle tek encode edilir.
+QUALITY_MODE_FIXED: str = "fixed"
+
+
+def rendition_quality_mode(slot_key: str) -> str:
+	"""Slotun türev encode kipi — `ssim_search` (varsayılan) ya da `fixed`."""
+	try:
+		pol = load_slot_policy(slot_key)
+	except RenderError:
+		return "ssim_search"
+	return str((pol.get("quality") or {}).get("rendition_quality_mode") or "ssim_search")
+
+
 def resolve_target_ssim(slot_key: str, content_class: str) -> float:
-	"""Politikadan hedef SSIM. 0.0 = SSIM aranmaz (bit_exact) ya da tanımsız."""
+	"""Politikadan hedef SSIM. 0.0 = SSIM aranmaz (bit_exact, `fixed` kip) ya da tanımsız.
+
+	`quality.rendition_quality_mode == "fixed"` olan slotta (2026-09-30:
+	product.image, WebP q80) türev üretimi SSIM hedefiyle KAPILANMAZ; 0.0
+	dönüşü `_encode_with_search`'ü profilin tamsayı kalitesiyle tek encode
+	yoluna sokar.
+	"""
+	if rendition_quality_mode(slot_key) == QUALITY_MODE_FIXED:
+		return 0.0
 	deger = ssim_mod.target_for(slot_key, content_class)
 	return float(deger) if deger else 0.0
 
@@ -783,6 +879,7 @@ def _encode_with_search(
 	source_bytes: int,
 	max_encodes: int,
 	quality_range: tuple[int, int],
+	dpi: int | None = None,
 ) -> tuple:
 	"""Bir biçim için baytları üret. Dönüş `(bytes, quality, ssim, encodes, notes)`.
 
@@ -802,10 +899,10 @@ def _encode_with_search(
 
 	if politika_q == LOSSLESS or target_ssim <= 0.0:
 		if politika_q == LOSSLESS:
-			data, n = encode(canvas, fmt, LOSSLESS, icc=icc, pad_color=pad)
+			data, n = encode(canvas, fmt, LOSSLESS, icc=icc, pad_color=pad, dpi=dpi)
 			return data, LOSSLESS, 1.0, 1, tuple(notes) + n + (NOTE_SSIM_UNKNOWN,)
 		if isinstance(politika_q, int):
-			data, n = encode(canvas, fmt, politika_q, icc=icc, pad_color=pad)
+			data, n = encode(canvas, fmt, politika_q, icc=icc, pad_color=pad, dpi=dpi)
 			return data, politika_q, 0.0, 1, tuple(notes) + n + (NOTE_SSIM_UNKNOWN,)
 		raise RenderError(
 			f"{profile.slot_key}/{profile.name}/{fmt}: hedef SSIM de kalibre kalite de yok — "
@@ -814,7 +911,7 @@ def _encode_with_search(
 
 	def _enc(_content, _max_dim, q):
 		try:
-			data, _n = encode(canvas, fmt, int(q), icc=icc, pad_color=pad)
+			data, _n = encode(canvas, fmt, int(q), icc=icc, pad_color=pad, dpi=dpi)
 		except Exception as exc:  # noqa: BLE001
 			return b"", f"encode_error:{type(exc).__name__}"
 		return data, ""
@@ -846,6 +943,7 @@ def _encode_with_calibrated_probe(
 	target_ssim: float,
 	max_encodes: int,
 	quality_range: tuple[int, int],
+	dpi: int | None = None,
 ) -> tuple:
 	"""Büyük matris hızlı yolu: kalibre kaliteyi ölç, gerekirse üst sınıra çık.
 
@@ -866,6 +964,7 @@ def _encode_with_calibrated_probe(
 			source_bytes=0,
 			max_encodes=max_encodes,
 			quality_range=quality_range,
+			dpi=dpi,
 		)
 
 	lo, hi = sorted((int(quality_range[0]), int(quality_range[1])))
@@ -885,6 +984,7 @@ def _encode_with_calibrated_probe(
 			quality,
 			icc=icc,
 			pad_color=profile.pad_color or DEFAULT_PAD_COLOR,
+			dpi=dpi,
 		)
 		olcum = ssim_mod.compute_ssim(canvas, data)
 		aday = (data, quality, olcum.value, index, notes)
@@ -933,7 +1033,9 @@ def render_rendition(
 	else:
 		im, icc, hazirlik_notlari = _prepared
 	if strip_rules(profile.slot_key).get("icc", False):
-		icc = None  # politika ICC'yi de siliyor
+		icc = b""  # politika ICC'yi de siliyor — encode sRGB de gömmesin
+	# Türev kaynağın DPI beyanını taşır; kaynakta yoksa ekran varsayılanı 72.
+	cikti_dpi = int(im.info.get(SOURCE_DPI_INFO_KEY) or 0) or DEFAULT_OUTPUT_DPI
 
 	if _canvas is None:
 		plan = plan_geometry(im.size, profile, crop_intent)
@@ -943,11 +1045,15 @@ def render_rendition(
 
 	if content_class is None:
 		content_class = ssim_mod.guess_content_class(canvas)
+	# `fixed` kip (şema v1.5.0): SSIM üretimi KAPILAMAZ ama kazanan çıktıda bir
+	# kez ÖLÇÜLÜR ve künyeye (→ `Media Rendition.ssim`) yazılır. Çağıran pozitif
+	# bir hedef verdiyse (ölçüm/regresyon) o geçerlidir, ölçüm-yalnız kip kapanır.
+	yalniz_olc = not target_ssim and rendition_quality_mode(profile.slot_key) == QUALITY_MODE_FIXED
 	if target_ssim is None:
 		target_ssim = resolve_target_ssim(profile.slot_key, content_class)
 
 	ssim_backend, ssim_proxy = ssim_measurement_mode(plan.canvas_size)
-	if target_ssim <= 0.0:
+	if target_ssim <= 0.0 and not yalniz_olc:
 		ssim_backend, ssim_proxy = "", False
 
 	zincir: Sequence[str] = (fmt,) if fmt else profile.formats
@@ -966,6 +1072,7 @@ def render_rendition(
 				target_ssim=target_ssim,
 				max_encodes=max_encodes,
 				quality_range=quality_range,
+				dpi=cikti_dpi,
 				**({"source_bytes": source_bytes} if not _fast_quality else {}),
 			)
 		except RenderError as exc:
@@ -1045,6 +1152,10 @@ def render_rendition(
 		)
 
 	f, data, q, s, enc_sayisi, encode_notlari = kazanan
+	if yalniz_olc and not s:
+		# Ölçüm-yalnız: tek encode'un SSIM'i rapor için ölçülür, karar değişmez.
+		s = float(ssim_mod.compute_ssim(canvas, data).value)
+		encode_notlari = tuple(n for n in encode_notlari if n != NOTE_SSIM_UNKNOWN)
 	notes.extend(encode_notlari)
 	if profile.max_bytes and len(data) > profile.max_bytes:
 		notes.append(NOTE_OVERSIZE)
@@ -1215,6 +1326,7 @@ __all__ = [
 	"build_canvas",
 	"encode",
 	"resolve_target_ssim",
+	"rendition_quality_mode",
 	"render",
 	"render_rendition",
 	"render_ladder",

@@ -103,9 +103,18 @@ class Faz2PolitikaKapisiTesti(unittest.TestCase):
 		self.assertEqual(bulgular, [])
 
 	def test_urun_master_ve_garanti_webp_tavani_tutarli(self):
+		"""GÜNCELLENDİ 2026-09-29 (kare kuralı): `product-image.json`
+		`master.{min_long_edge,max_long_edge}` 2000→1000 / 2400→2000 indi —
+		ürüne bağlanan görsel artık kare 1000–2000 px beyaz dolguya otomatik
+		çevriliyor (media/kare.py). `engine.to_webp`'in varsayılan `max_dim`'i
+		(legacy fotoğraf motoru, tradehub_core/media/engine.py) bu görevin
+		kapsamı DIŞINDA bilinçli olarak dokunulmadı; iki sayı artık kasıtlı
+		olarak AYRIŞIYOR — eşitlik iddiası kaldırıldı, `to_webp` varsayılanı
+		ayrı bir assert ile kendi başına sabitlendi.
+		"""
 		urun = next(item for item in self.policies if item["slot_key"] == "product.image")
-		self.assertGreaterEqual(urun["master"]["min_long_edge"], 2000)
-		self.assertEqual(urun["master"]["max_long_edge"], 2400)
+		self.assertEqual(urun["master"]["min_long_edge"], 1000)
+		self.assertEqual(urun["master"]["max_long_edge"], 2000)
 		self.assertEqual(inspect.signature(engine.to_webp).parameters["max_dim"].default, 2400)
 
 

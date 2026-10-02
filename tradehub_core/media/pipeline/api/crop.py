@@ -317,6 +317,26 @@ class CropApi:
 			cikti.append(satir)
 		return cikti
 
+	def _govde(self, asset: str, kayit: Mapping[str, Any], ham: Any) -> Dict[str, Any]:
+		"""`get_intent` / `save_intent` gövdesi — ETag HER ZAMAN bu şekilden hesaplanır.
+
+		2026-10-01: `If-Match` eskiden yalnız `{asset, intent}` üzerinden hesaplanıyordu,
+		istemciye ise tam gövdenin ETag'i veriliyordu; taze ETag bile 412 alıyordu.
+		"""
+		intent = self._normalize_intent(ham)
+		return {
+			"asset": str(asset),
+			"slot_key": self._slot_of(kayit),
+			"exists": ham is not None,
+			"intent": intent,
+			"source": {
+				"width": int(kayit.get("width") or 0),
+				"height": int(kayit.get("height") or 0),
+				"source_ratio": crop_core.source_ratio_of(kayit),
+			},
+			"windows": self._windows(kayit, intent),
+		}
+
 	# ── T-082.1 get_intent ─────────────────────────────────────────────
 
 	def get_intent(
@@ -331,20 +351,7 @@ class CropApi:
 		"""
 		kayit = self._asset(principal, asset)
 		ham = self.intents.get(str(asset))
-		intent = self._normalize_intent(ham)
-		govde = {
-			"asset": str(asset),
-			"slot_key": self._slot_of(kayit),
-			"exists": ham is not None,
-			"intent": intent,
-			"source": {
-				"width": int(kayit.get("width") or 0),
-				"height": int(kayit.get("height") or 0),
-				"source_ratio": crop_core.source_ratio_of(kayit),
-			},
-			"windows": self._windows(kayit, intent),
-		}
-		return env.conditional_get(govde, if_none_match)
+		return env.conditional_get(self._govde(asset, kayit, ham), if_none_match)
 
 	# ── T-082.2 save_intent ────────────────────────────────────────────
 
@@ -387,11 +394,7 @@ class CropApi:
 
 		mevcut_ham = self.intents.get(str(asset))
 		if if_match:
-			mevcut_govde = {
-				"asset": str(asset),
-				"intent": self._normalize_intent(mevcut_ham),
-			}
-			if not env.etag_matches(env.etag_for(mevcut_govde), if_match):
+			if not env.etag_matches(env.etag_for(self._govde(asset, kayit, mevcut_ham)), if_match):
 				raise env.PreconditionFailed(
 					"Kırpma niyeti bu arada değişti; sayfayı yenileyip tekrar deneyin.",
 					kod=kod_uret(env.API_PREFIX, "precondition_failed"),
@@ -455,22 +458,14 @@ class CropApi:
 		yeni["approved_by_user"] = bool(approved_by_user)
 		yeni["updated_at"] = float(self.clock())
 
-		kaydedilen = self._normalize_intent(self.intents.save(str(asset), yeni) or yeni)
-
-		govde = {
-			"asset": str(asset),
-			"slot_key": self._slot_of(kayit),
-			"exists": True,
-			"intent": kaydedilen,
-			"source": {
-				"width": int(kayit.get("width") or 0),
-				"height": int(kayit.get("height") or 0),
-				"source_ratio": crop_core.source_ratio_of(kayit),
-			},
-			"windows": self._windows(kayit, kaydedilen),
-		}
-		# ETag `get_intent` ile AYNI gövde şeklinden hesaplanır ki istemci
-		# yazdıktan sonra aldığı ETag'i doğrudan `If-Match`'e koyabilsin.
+		yazilan = self.intents.save(str(asset), yeni) or yeni
+		# Yazma sonrası depodan YENİDEN okunur: Frappe deposunda `save()` dönüşü bellekteki
+		# belgeden gelir (`confidence` None) ama `get_intent` DB'den okur (Float kolonu
+		# NOT NULL DEFAULT 0 → 0.0). Aynı kaynaktan okumak ETag'in birebir eşleşmesini
+		# garanti eder.
+		kaydedilen_ham = self.intents.get(str(asset)) or yazilan
+		govde = self._govde(asset, kayit, kaydedilen_ham)
+		# ETag `get_intent` ile AYNI gövde şeklinden — doğrudan `If-Match`e konabilir.
 		return env.ok(govde, etag=env.etag_for(govde))
 
 	@staticmethod

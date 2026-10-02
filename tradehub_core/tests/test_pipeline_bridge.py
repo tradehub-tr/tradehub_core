@@ -39,6 +39,11 @@ from frappe.tests.utils import FrappeTestCase
 from tradehub_core.api import media_manifest
 from tradehub_core.media import pipeline_bridge, pipeline_flags
 
+# AV tarama kancası yeni dosyayı `media_scan_hold`'a taşıyor ve diskten okuyan
+# test ölçtüğü davranışla ilgisiz `FileNotFoundError` alıyordu (2026-09-30
+# ölçüldü: bu modülün "Media Asset açılmadı" hataları). Bkz. tests/av_notr.py.
+from tradehub_core.tests.av_notr import setUpModule, tearDownModule  # noqa: F401
+
 DOCTYPE_AYAR = pipeline_flags.SETTINGS_DOCTYPE
 KORUNAN_ALANLAR = (
 	"media_pipeline_enabled",
@@ -111,6 +116,27 @@ def _asset_temizle(asset_name: str) -> None:
 	kok = frappe.get_site_path("public", "files", "media", asset_name)
 	if os.path.isdir(kok):
 		shutil.rmtree(kok)
+
+
+def _profili_geri_ac(ad: str) -> None:
+	"""Kapatılan tohum profilini geri aç ve KALICI yap.
+
+	`commit` şart (2026-09-30 kök neden): `_run_rendition_job` test ortasında
+	commit atıyor, yani profilin KAPATILMASI kalıcı oluyor. `addCleanup`
+	geri çağrıları `tearDown`'dan (ve onun commit'inden) SONRA koşar; commit'siz
+	geri açma, test sonundaki rollback'le siliniyordu. 2026-09-28 20:05'teki
+	test koşusu `product.image`'ın yedi gerçek profilini bu yüzden kapalı
+	bıraktı ve sonraki her ürün görseli `incomplete_rendition_matrix` ile düştü.
+	"""
+	frappe.db.set_value("Media Profile", ad, "enabled", 1)
+	frappe.db.commit()
+
+
+def _tohumlanmis_profilleri_kapat(test) -> None:
+	"""Slotun tohumlanmış profillerini test süresince kapatır, sonra KALICI olarak geri açar."""
+	for ad in frappe.get_all("Media Profile", filters={"slot_key": SLOT, "enabled": 1}, pluck="name"):
+		frappe.db.set_value("Media Profile", ad, "enabled", 0)
+		test.addCleanup(_profili_geri_ac, ad)
 
 
 def _dosya_ekle(test, file_name: str, icerik: bytes, **alanlar: object):
@@ -501,9 +527,7 @@ class TestUctanUcaUretim(_BayrakliTest):
 		7 gerçek profili açıyor. Bu test TEK profilin merdivenini ölçüyor; gerçek
 		profiller açıkken beklenen basamak listesi kuruluma bağlı olurdu.
 		"""
-		for ad in frappe.get_all("Media Profile", filters={"slot_key": SLOT, "enabled": 1}, pluck="name"):
-			frappe.db.set_value("Media Profile", ad, "enabled", 0)
-			self.addCleanup(frappe.db.set_value, "Media Profile", ad, "enabled", 1)
+		_tohumlanmis_profilleri_kapat(self)
 
 	def _temizle(self, asset_name: str) -> None:
 		"""Üretilen kayıtları VE diske yazılan türev dosyalarını kaldırır."""
@@ -627,9 +651,7 @@ class TestMevcutTurevAtlama(_BayrakliTest):
 			attached_to_doctype="Listing",
 			attached_to_field="primary_image",
 		)
-		for ad in frappe.get_all("Media Profile", filters={"slot_key": SLOT, "enabled": 1}, pluck="name"):
-			frappe.db.set_value("Media Profile", ad, "enabled", 0)
-			self.addCleanup(frappe.db.set_value, "Media Profile", ad, "enabled", 1)
+		_tohumlanmis_profilleri_kapat(self)
 		self.profil = _profil_olustur(self, "test-atlama", "[96, 384]")
 		self._hatti_ac()
 
@@ -748,9 +770,7 @@ class TestFaz6UretimAkislari(_BayrakliTest):
 
 	def setUp(self) -> None:
 		super().setUp()
-		for ad in frappe.get_all("Media Profile", filters={"slot_key": SLOT, "enabled": 1}, pluck="name"):
-			frappe.db.set_value("Media Profile", ad, "enabled", 0)
-			self.addCleanup(frappe.db.set_value, "Media Profile", ad, "enabled", 1)
+		_tohumlanmis_profilleri_kapat(self)
 		self._hatti_ac()
 
 	def _doc(self, name: str, content: bytes):

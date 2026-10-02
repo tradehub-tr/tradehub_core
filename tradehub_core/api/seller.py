@@ -476,8 +476,34 @@ def get_sellers(
 		except Exception:
 			s["gallery_images"] = []
 	_satici_urun_gorsellerini_cevir(sellers)
+	_satici_kart_medyasi(sellers)
 	total = frappe.db.count("Admin Seller Profile", filters=filters)
 	return {"sellers": sellers, "total": total, "page": int(page), "page_size": int(page_size)}
+
+
+def _satici_kart_medyasi(sellers: list) -> None:
+	"""Üretici kartları: logo (`logo_media`) ve galeri (`gallery_images_media`) WebP türevleri.
+
+	Kart logosu ~40–116 px, galeri önizlemesi 165–220 px basılıyor. Tek toplu tur.
+	"""
+	from tradehub_core.api.media_manifest import magaza_gorsel_medyasi_saticili
+
+	ogeler = []
+	for s in sellers:
+		satici = str(s.get("name") or "")
+		if s.get("logo"):
+			ogeler.append((s["logo"], "seller.logo", satici))
+		for u in s.get("gallery_images") or ():
+			ogeler.append((u, "company.cover_image", satici))
+	# Satıcı bazlı anahtar: aynı URL+slotu paylaşan iki satıcı birbirinin odağını almaz.
+	medya = magaza_gorsel_medyasi_saticili(ogeler)
+	for s in sellers:
+		satici = str(s.get("name") or "")
+		s["logo_media"] = medya.get((s.get("logo"), "seller.logo", satici)) if s.get("logo") else None
+		s["cover_image_media"] = None
+		s["gallery_images_media"] = [
+			medya.get((u, "company.cover_image", satici)) for u in s.get("gallery_images") or ()
+		]
 
 
 def _satici_urun_gorsellerini_cevir(sellers: list) -> None:
@@ -610,6 +636,11 @@ def get_seller(slug):
 	# Frontend StoreHeader hardcoded thumbs yerine bu media_groups'i kullanir.
 	# Bos gruplar (count=0) yine donulur — UI tab'i kayit yoksa atlayabilir.
 	seller["media_groups"] = _build_media_groups(seller["name"])
+	# Mağaza logosu/kapak WebP türevleri — vitrin 38–140 px basıyor (`logo_media.srcset`).
+	from tradehub_core.api.media_manifest import magaza_medyasi_ekle
+
+	magaza_medyasi_ekle([seller], {"logo": "seller.logo", "banner_image": "company.cover_image"}, "name")
+	seller["cover_image_media"] = seller.get("banner_image_media")
 
 	# v4: Storefront sadece Verified cert'leri görür (verification_status="Verified").
 	# Pending/Rejected gizlenir. CompanyProfile.ts bu listeyi okur.
@@ -843,6 +874,21 @@ def _build_media_groups(admin_seller_profile_name):
 			}
 		)
 
+	# WebP türevleri (`src_media` / `poster_media`): galeri ana görseli ~500 px,
+	# küçük resimler ~100 px basılıyor; ham master (MB'lık PNG) inmesin.
+	from tradehub_core.api.media_manifest import magaza_medyasi_ekle
+
+	butun = [it for items in groups_by_key.values() for it in items]
+	for it in butun:
+		it["_satici"] = admin_seller_profile_name
+		it["_gorsel"] = it["src"] if it["media_type"] != "video" else ""
+	magaza_medyasi_ekle(butun, {"_gorsel": "company.cover_image", "poster": "company.cover_image"}, "_satici")
+	for it in butun:
+		it["src_media"] = it.pop("_gorsel_media", None)
+		it["poster_media"] = it.pop("poster_media", None)
+		it.pop("_gorsel", None)
+		it.pop("_satici", None)
+
 	result = []
 	for key, label in _MEDIA_CATEGORIES:
 		items = groups_by_key[key]
@@ -917,6 +963,7 @@ def update_my_admin_seller_profile(logo=None, banner_image=None, slogan=None):
 	if updates:
 		for f, v in updates.items():
 			frappe.db.set_value("Admin Seller Profile", name, f, v)
+		_magaza_gorsellerini_kuyruga_al(name, updates)
 		frappe.db.commit()
 	return {"updated": list(updates.keys())}
 
@@ -1017,9 +1064,20 @@ def update_profile(data=None) -> dict:
 	updates = {k: v for k, v in data.items() if k in _PROFILE_EDITABLE_FIELDS}
 	for field, value in updates.items():
 		frappe.db.set_value("Admin Seller Profile", name, field, value)
+	_magaza_gorsellerini_kuyruga_al(name, updates)
 	if updates:
 		frappe.db.commit()
 	return {"updated": sorted(updates.keys())}
+
+
+def _magaza_gorsellerini_kuyruga_al(name: str, updates: dict) -> None:
+	"""`db.set_value` kayıt kancalarını atlıyor: logo/kapak değiştiyse WebP dönüşümünü
+	(`media.magaza_gorseli`) burada kuyruğa al — iş commit sonrası koşar."""
+	if not ({"logo", "banner_image"} & set(updates)):
+		return
+	from tradehub_core.media import magaza_gorseli
+
+	magaza_gorseli.enqueue_seller(name)
 
 
 @frappe.whitelist(allow_guest=True)
@@ -1753,7 +1811,15 @@ def get_storefront_layout(seller_code):
 		DEFAULT_THEME,
 	)
 
-	if not frappe.db.exists("Admin Seller Profile", seller_code):
+	# Vitrin URL'si küçük harfli slug gönderir (`sel-00020`). MariaDB eşleşmesi harf
+	# duyarsız, Python sözlükleri değil: kayıttaki adla devam et ki satıcının kendi
+	# varlığı ve odağı bulunsun.
+	seller_code = (
+		frappe.db.get_value("Admin Seller Profile", seller_code, "name")
+		if isinstance(seller_code, str) and seller_code
+		else None
+	)
+	if not seller_code:
 		frappe.throw(_("Satici bulunamadi"), frappe.DoesNotExistError)
 
 	layout_name = frappe.db.get_value("Storefront Layout", {"seller_profile": seller_code}, "name")
@@ -1786,7 +1852,27 @@ def get_storefront_layout(seller_code):
 		sections = DEFAULT_SECTIONS
 		theme = DEFAULT_THEME
 
-	return {"sections": sections, "theme": theme}
+	return {
+		"sections": sections,
+		"theme": theme,
+		"image_media": _vitrin_gorsel_medyasi(seller_code, sections),
+	}
+
+
+def _vitrin_gorsel_medyasi(seller_code: str, sections) -> dict:
+	"""Vitrin slayt/bant görsellerinin WebP türevleri: `{adres: {src, srcset, width, height}}`.
+
+	Bölümlerin İÇİNE yazılmaz, yan harita olarak döner: düzenleyici aynı ucu
+	okuyup `save_storefront_layout` ile geri kaydediyor — gömülü türev gövdesi
+	kalıcı JSON'a sızardı.
+	"""
+	from tradehub_core.api.media_manifest import magaza_gorsel_medyasi
+	from tradehub_core.media import magaza_gorseli
+
+	adresler: set[str] = set()
+	magaza_gorseli._json_adresleri(frappe.as_json(sections), adresler)
+	medya = magaza_gorsel_medyasi((u, "company.cover_image", seller_code) for u in sorted(adresler))
+	return {url: govde for (url, _slot), govde in medya.items()}
 
 
 # M18 fix — guest erişimli; sender bilgisi oturumdan alınıyor (impersonation engelli),

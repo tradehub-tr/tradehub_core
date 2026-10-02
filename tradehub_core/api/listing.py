@@ -1497,6 +1497,13 @@ def get_listing_detail(listing_id, lang="tr"):
 					"reorderRate": seller.reorder_rate or None,
 					"verifications": seller_verifs,
 				}
+				# Mağaza logosu WebP türevleri (`logo_media.srcset`): satıcı kartı 30 px ve
+				# Tedarikçi sekmesi 64 px basıyor; ham master (1000+ px PNG) inmesin.
+				from tradehub_core.api.media_manifest import magaza_medyasi_ekle
+
+				supplier_data["seller_profile"] = listing.seller_profile
+				magaza_medyasi_ekle([supplier_data], {"logo": "seller.logo"}, "seller_profile")
+				supplier_data.pop("seller_profile", None)
 			except Exception as _e2:
 				frappe.log_error(
 					title="get_listing_detail supplier_data build",

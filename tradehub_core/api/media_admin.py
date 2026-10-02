@@ -1298,6 +1298,11 @@ def stop_retro_rename(job_key: str) -> dict:
 def rollback_retro_rename(job_key: str) -> dict:
 	"""Bir işin yeniden adlandırmalarını geri al (yönlendirme satırları durduğu sürece)."""
 	_guard_destructive()
+	from tradehub_core.media import kare
+
+	# Kare satırlarının `file_names` biçimi farklı; yalnız `rollback_square` geri alır.
+	if (job_key or "").startswith(kare.JOB_PREFIX):
+		frappe.throw(_("Kare işleri yalnız kare kartından geri alınabilir."))
 	rollback_key = frappe.generate_hash(length=12)
 	if not retro_rename.claim_active(rollback_key):
 		frappe.throw(_("Zaten çalışan bir iş var; bitmesini bekleyin."))
@@ -1326,10 +1331,139 @@ def retro_rename_history() -> dict:
 	# edildi (refactor-targets.md §2 istisnası — sabit tablo/kolon).
 	rows = frappe.db.sql(  # noqa: S608 — sabit tablo/kolon, kullanıcı girdisi yok
 		"""select job_key, count(*) as count, min(expires_at) as expires_at, min(creation) as first_created
-			from `tabMedia URL Redirect` group by job_key order by first_created desc""",
+			from `tabMedia URL Redirect` where ifnull(job_key, '') not like %s
+			group by job_key order by first_created desc""",
+		("kare-%",),
 		as_dict=True,
 	)
 	return {"jobs": rows}
+
+
+# ─── 2026-09-29 ürün görseli kare (spec urun-gorseli-kare) ──────────────────
+# İş mantığı `media/kare.py`; kilit ve ilerleme retro-rename ile ortak.
+
+
+@frappe.whitelist(methods=["GET"])
+def square_count() -> dict:
+	_guard_destructive()
+	from tradehub_core.media import kare
+
+	return {"total": len(kare.aday_urls())}
+
+
+@frappe.whitelist(methods=["POST"])
+def start_square(dry_run: int = 0, batch_size: int = 200) -> dict:
+	_guard_destructive()
+	from tradehub_core.media import kare
+
+	total = len(kare.aday_urls())
+	if not total:
+		frappe.throw(_("Kareye çevrilecek ürün görseli yok."))
+	job_key = f"{kare.JOB_PREFIX}{frappe.generate_hash(length=12)}"
+	if not retro_rename.claim_active(job_key):
+		frappe.throw(_("Zaten çalışan bir medya işi var."))
+	try:
+		frappe.enqueue(
+			"tradehub_core.media.kare.run_job",
+			queue="long",
+			timeout=4 * 3600,
+			enqueue_after_commit=True,
+			job_key=job_key,
+			dry_run=int(dry_run or 0),
+			batch_size=min(2000, max(1, int(batch_size or 200))),
+		)
+	except Exception:
+		retro_rename.release_active(job_key)
+		raise
+	return {"job_key": job_key, "total": total, "dry_run": int(dry_run or 0)}
+
+
+@frappe.whitelist(methods=["GET"])
+def get_square_status(job_key: str) -> dict:
+	_guard_destructive()
+	return retro_rename.read_progress(job_key)
+
+
+@frappe.whitelist(methods=["POST"])
+def stop_square(job_key: str) -> dict:
+	_guard_destructive()
+	retro_rename.request_stop(job_key)
+	return {"ok": True}
+
+
+@frappe.whitelist(methods=["POST"])
+def rollback_square(job_key: str) -> dict:
+	"""Kare işini geri al. Önce `site_config.json`'a `urun_gorseli_kare_kapali: 1`
+	yazılmalı — aksi hâlde geri alma sonrası ilk ürün kaydı görseli yeniden kareler."""
+	_guard_destructive()
+	from tradehub_core.media import kare
+
+	if not (job_key or "").startswith(kare.JOB_PREFIX):
+		frappe.throw(_("Yalnız kare işleri buradan geri alınabilir."))
+	rollback_key = frappe.generate_hash(length=12)
+	if not retro_rename.claim_active(rollback_key):
+		frappe.throw(_("Zaten çalışan bir iş var; bitmesini bekleyin."))
+	try:
+		frappe.enqueue(
+			"tradehub_core.media.kare.run_rollback",
+			queue="long",
+			timeout=4 * 3600,
+			enqueue_after_commit=True,
+			job_key=job_key,
+			rollback_key=rollback_key,
+		)
+	except Exception:
+		retro_rename.release_active(rollback_key)
+		raise
+	return {"job_key": rollback_key, "source_job_key": job_key}
+
+
+# ─── 2026-09-30 ürün görsellerini tek düğmeyle optimize et ──────────────────
+# İş mantığı `media/urun_gorseli_optimize.py`; kilit kare/retro-rename ile ortak.
+
+
+@frappe.whitelist(methods=["POST"])
+def start_product_image_optimize(dry_run: int = 1, prova_key: str = "") -> dict:
+	"""Prova (`dry_run=1`, hiçbir şey yazmaz) ya da gerçek koşu (son provanın anahtarıyla)."""
+	_guard_destructive()
+	from tradehub_core.media import urun_gorseli_optimize
+
+	return urun_gorseli_optimize.baslat(dry_run=bool(cint(dry_run)), prova_key=str(prova_key or ""))
+
+
+@frappe.whitelist(methods=["GET"])
+def get_product_image_optimize_status(job_key: str = "") -> dict:
+	"""Koşu durumu; anahtar verilmezse son koşu (sayfa yenilenince kart kaldığı yerden)."""
+	_guard_destructive()
+	from tradehub_core.media import urun_gorseli_optimize
+
+	return urun_gorseli_optimize.durum_oku(str(job_key or ""))
+
+
+@frappe.whitelist(methods=["GET"])
+def get_product_image_optimize_preflight() -> dict:
+	"""Ön kontrolleri anında koştur (salt okunur)."""
+	_guard_destructive()
+	from tradehub_core.media import urun_gorseli_optimize
+
+	return {"checks": urun_gorseli_optimize.on_kontroller()}
+
+
+@frappe.whitelist(methods=["POST"])
+def stop_product_image_optimize(job_key: str) -> dict:
+	_guard_destructive()
+	from tradehub_core.media import urun_gorseli_optimize
+
+	return urun_gorseli_optimize.durdur(str(job_key or ""))
+
+
+@frappe.whitelist(methods=["POST"])
+def rollback_product_image_optimize(job_key: str) -> dict:
+	"""Adımların kendi geri almalarını ters sırayla koşturur (bugün: kare)."""
+	_guard_destructive()
+	from tradehub_core.media import urun_gorseli_optimize
+
+	return urun_gorseli_optimize.geri_al(str(job_key or ""))
 
 
 # ── SEO alanları, üretim ve denetim (TUR-135) ───────────────────────────

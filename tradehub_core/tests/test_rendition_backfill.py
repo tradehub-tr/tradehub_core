@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import copy
+import json
 import unittest
 from unittest.mock import Mock, patch
 
@@ -228,33 +229,41 @@ class HistoricalFileManifestTests(unittest.TestCase):
 		query.assert_called_once()
 
 
+_POLITIKA_AVIF = {"profiles": [{"name": "w96", "formats": ["avif"]}]}
+_POLITIKA_WEBP = {"profiles": [{"name": "w192", "formats": ["webp"]}]}
+
+
 class AvifBackfillReadinessTests(unittest.TestCase):
-	def _ready(self, rows, *, exists=True):
+	"""`_ready` biçimi POLİTİKADAN okur (2026-09-30: eskiden sabit `avif`)."""
+
+	def _ready(self, rows, *, exists=True, policy=None):
+		policy = _POLITIKA_AVIF if policy is None else policy
 		with (
 			patch.object(backfill.frappe.db, "sql", return_value=rows),
 			patch.object(backfill.ownership, "store_of", return_value="seller-a"),
-			patch(
-				"tradehub_core.media.pipeline.image.render.load_slot_policy", return_value={"profiles": []}
-			),
+			patch("tradehub_core.media.pipeline.image.render.load_slot_policy", return_value=policy),
 			patch.object(backfill.os.path, "isfile", return_value=exists),
 		):
 			return backfill._ready(frappe._dict(owner="owner"), "source", "product.image")
 
 	def test_old_mixed_version_is_regenerated(self):
-		self.assertFalse(
-			self._ready(
-				[("/files/a.avif", "avif", '{"profiles": []}'), ("/files/a.webp", "webp", '{"profiles": []}')]
-			)
-		)
+		snap = json.dumps(_POLITIKA_AVIF)
+		self.assertFalse(self._ready([("/files/a.avif", "avif", snap), ("/files/a.webp", "webp", snap)]))
 
 	def test_old_avif_policy_is_regenerated(self):
 		self.assertFalse(self._ready([("/files/a.avif", "avif", '{"profiles": ["old"]}')]))
 
 	def test_only_current_complete_avif_outputs_are_skipped(self):
-		rows = [("/files/a.avif", "avif", '{"profiles": []}')]
+		rows = [("/files/a.avif", "avif", json.dumps(_POLITIKA_AVIF))]
 		self.assertTrue(self._ready(rows))
 		self.assertFalse(self._ready(rows, exists=False))
 		self.assertFalse(self._ready([]))
+
+	def test_webp_policy_skips_webp_and_regenerates_legacy_avif(self):
+		"""WebP merdiveni (product.image 2026-09-30) hazır sayılır; eski AVIF satırı sayılmaz."""
+		snap = json.dumps(_POLITIKA_WEBP)
+		self.assertTrue(self._ready([("/files/a.webp", "webp", snap)], policy=_POLITIKA_WEBP))
+		self.assertFalse(self._ready([("/files/a.avif", "avif", snap)], policy=_POLITIKA_WEBP))
 
 
 class AvifManifestTests(unittest.TestCase):

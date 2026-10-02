@@ -23,6 +23,11 @@ import json
 import frappe
 
 from tradehub_core.api import media_manifest
+
+# AV tarama kancası yeni dosyayı `media_scan_hold`'a taşıyor ve diskten okuyan
+# test ölçtüğü davranışla ilgisiz `FileNotFoundError` alıyordu (2026-09-30
+# ölçüldü). Bkz. tests/av_notr.py.
+from tradehub_core.tests.av_notr import setUpModule, tearDownModule  # noqa: F401
 from tradehub_core.tests.test_media_access_level import MediaAccessLevelTestBase
 
 #: Gerçek slot politikasının profil merdiveninden adlar (`product-image.json`).
@@ -445,3 +450,25 @@ class ManifestBatchDuplicateFileTests(ManifestBatchTestBase):
 			[t["file_url"] for t in kendi["manifests"][mukerrer_b]["renditions"]],
 			self.b.public_rendition_urls,
 		)
+
+
+class ManifestBatchArchivedAssetTests(ManifestBatchTestBase):
+	"""Kare backfill: emekli (eski içerikli) varlık, güncel varlık varken gizlenir."""
+
+	def test_arsivli_varlik_guncel_varken_gizlenir(self):
+		yeni = self._make_asset(self.a.store, self.a.public_file, self.a.email, "mb-a-yeni")
+		frappe.db.set_value("Media Asset", self.a.public_asset, "state", "archived")
+		frappe.db.commit()
+		self._as_seller(self.a)
+		man = media_manifest.manifest_batch([self.a.public_file])["manifests"][self.a.public_file]
+		self.assertEqual(man["assets"], [yeni])
+		self.assertEqual(man["renditions"], [])
+
+		# Hepsi arşivliyse eski oranlı türev sunulmaz; istemci ana dosyaya düşer.
+		frappe.set_user("Administrator")
+		frappe.db.set_value("Media Asset", yeni, "state", "archived")
+		frappe.db.commit()
+		self._as_seller(self.a)
+		man = media_manifest.manifest_batch([self.a.public_file])["manifests"][self.a.public_file]
+		self.assertEqual(man["assets"], [])
+		self.assertEqual(man["renditions"], [])

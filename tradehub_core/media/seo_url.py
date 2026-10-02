@@ -361,6 +361,42 @@ def resolve(path: str) -> dict:
 	return {"status": "ok", "disk_url": disk_url, "canonical": None}
 
 
+def resolve_retired_code(path: str) -> str | None:
+	"""`resolve()` "yok" dönünce son çare: kod, kare/retro-rename'in TAŞIDIĞI
+	bir dosyanın eski adresine mi aitti (I6, fix round 1).
+
+	Kısa kod (`assign_code`) her zaman içerik-adresli adresin hash'inin bir
+	ÖNEKİYDİ. Kare dönüşümü eski `File` satırının `seo_code`'unu temizliyor
+	(`kare._uygula`) — yani `resolve()` artık kodu bulamaz ve alpha'da halihazırda
+	yayınlanmış okunur adres (arama motoru, favoriler, SW önbelleği) 404'e düşer.
+	Burada o eski içerik-adresli adresi `Media URL Redirect.source_url` üzerinden
+	arıyoruz (`/files/<kod[:2]>/<kod>...`): süresi dolmamış TAM OLARAK BİR eşleşme
+	varsa yeni dosyanın okunur (ya da bulunamazsa hash'li) adresine 301 verilir.
+	Sıfır ya da birden fazla eşleşme belirsizdir — çağıran 404'e düşer.
+
+	Türevler (`__w384` gibi) bu asgari köprünün kapsamı dışında: kare hiçbir
+	zaman türev üretmiyor, dolayısıyla "eski türevin yeni türevi" sorusu burada
+	yok — kapsamı minimal tutmak için atlanır.
+	"""
+	from frappe.utils import now_datetime
+
+	m = SEO_RE.match((path or "").split("?")[0])
+	if not m:
+		return None
+	slug, kod, turev, uzanti = m.groups()
+	if turev or uzanti not in GORSEL_UZANTILAR:
+		return None
+	desen = f"/files/{kod[:2]}/{kod}%"
+	satirlar = frappe.get_all(
+		"Media URL Redirect",
+		filters={"source_url": ["like", desen], "expires_at": (">", now_datetime())},
+		fields=["target_url"],
+	)
+	if len(satirlar) != 1:
+		return None
+	return seo_image_url(satirlar[0].target_url, slug)
+
+
 def _hassas_cache_key(h32: str) -> str:
 	return f"{HASSAS_CACHE_PREFIX}{h32}"
 

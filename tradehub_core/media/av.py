@@ -498,11 +498,37 @@ def _turev_uretimini_tetikle(file_url: str) -> None:
 		)
 
 
+def _kare_normalize_tetikle(file_url: str) -> None:
+	"""Fix round 2: bekletmeden dönen dosya bir ürün görseliyse kareleme kuyruğa.
+
+	`on_listing_update` kayıt ANINDA tetikleniyor ama tarama ayrı bir kuyruk
+	işi olduğu için dosya o an hâlâ bekletmede olabiliyor — `kare.normalize_one`
+	o anda `quarantined` diyip atlar ve dosya bir daha hiç kuyruğa girmezdi
+	(ölçüldü: LST-04593, canlı E2E, `docs/superpowers/sdd/...task-3-report.md`
+	"Fix round 2"). Dosyanın canlıya DÖNDÜĞÜ tek yer burası — F-27'nin türev
+	üretimini yeniden tetiklediği yerle aynı mantık, farklı iş.
+
+	Best-effort — `_turev_uretimini_tetikle` ile aynı desen: burada patlamak
+	dosyanın bekletmeden çıkmasını (asıl güvenlik kararını) engellememeli.
+	"""
+	try:
+		from tradehub_core.media import kare
+
+		kare.enqueue_for_released_url(file_url)
+	except Exception:
+		frappe.log_error(
+			title="media.av kareleme tetiklenemedi",
+			message=f"{file_url}: {frappe.get_traceback()}",
+		)
+
+
 def release_hold(file_url: str) -> bool:
 	"""Bekletmedeki dosyayı canlı ağaca geri koy — tarama temiz çıktı.
 
 	Dosya geri konduktan sonra türev üretimi yeniden tetikleniyor (F-27);
-	gerekçe `_turev_uretimini_tetikle` docstring'inde.
+	gerekçe `_turev_uretimini_tetikle` docstring'inde. Aynı yerde, aynı
+	gerekçeyle, ürün görseliyse kareleme de yeniden tetikleniyor (fix round 2,
+	bkz. `_kare_normalize_tetikle`).
 	"""
 	try:
 		src = _hold_path(file_url)
@@ -510,6 +536,7 @@ def release_hold(file_url: str) -> bool:
 			return False
 		_tasi(src, _live_path(file_url))
 		_turev_uretimini_tetikle(file_url)
+		_kare_normalize_tetikle(file_url)
 		return True
 	except Exception:
 		frappe.log_error(

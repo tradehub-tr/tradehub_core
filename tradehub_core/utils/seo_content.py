@@ -18,7 +18,7 @@ from __future__ import annotations
 import re
 
 # ── Ayarlanabilir eşikler ──────────────────────────────────────────────
-TITLE_MIN_CHARS = 50  # Ürün adı en az 50 karakter (SEO)
+TITLE_MIN_CHARS = 34  # Ürün adı en az 34 karakter (SEO; 2026-10-02'de 50'den indirildi)
 TITLE_MAX_CHARS = 250
 DESC_MIN_CHARS = 150  # Açıklama en az 150 görünür karakter (çok kısa yazı olmasın)
 

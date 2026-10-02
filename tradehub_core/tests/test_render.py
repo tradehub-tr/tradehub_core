@@ -88,6 +88,13 @@ def kaydet(im, fmt: str = "JPEG", **kw) -> bytes:
 	return buf.getvalue()
 
 
+#: Motor mekaniği testlerinin slotu. 2026-09-30'a kadar product.image idi; o
+#: slot artık 4 basamak WebP ve `rendition_quality_mode="fixed"` (SSIM araması
+#: yok). SSIM aramalı yol, fayda kapısı ve w96 basamağı library.image'da aynen
+#: duruyor — motorun kendisini ölçen testler oraya taşındı.
+TEST_SLOT = "library.image"
+
+
 def profil(**kw) -> R.RenditionProfile:
 	"""Test için sentetik profil. Politikaya dokunmadan tek değişken denenir."""
 	veri = {
@@ -98,7 +105,7 @@ def profil(**kw) -> R.RenditionProfile:
 		"fit": "contain",
 	}
 	veri.update(kw)
-	return R.RenditionProfile.from_dict(kw.pop("slot_key", "product.image"), veri)
+	return R.RenditionProfile.from_dict(kw.pop("slot_key", TEST_SLOT), veri)
 
 
 # ---------------------------------------------------------------------------
@@ -156,8 +163,8 @@ class MatrisVeriTesti(unittest.TestCase):
 			R.load_profiles("yok.boyle.slot")
 
 	def test_profile_for_ve_rendition_matrix(self):
-		p = R.profile_for("product.image", "w640")
-		self.assertEqual(p.width, 640)
+		p = R.profile_for("product.image", "w768")
+		self.assertEqual(p.width, 768)
 		matris = R.rendition_matrix("product.image")
 		self.assertEqual(len(matris), sum(len(x.formats) for x in R.load_profiles("product.image")))
 		self.assertTrue(all(isinstance(f, str) for _, f in matris))
@@ -371,7 +378,7 @@ class FaydaKapisiTesti(unittest.TestCase):
 		self.kucuk_kaynak = kaydet(gurultu(96, 96, seed=7), "JPEG", quality=15, optimize=True)
 
 	def test_zincir_tukenirse_kaynak_gecer(self):
-		p = R.profile_for("product.image", "w96")
+		p = R.profile_for(TEST_SLOT, "w96")
 		r = R.render_rendition(self.kucuk_kaynak, p)
 		self.assertTrue(r.passthrough)
 		self.assertEqual(r.content, self.kucuk_kaynak)
@@ -380,7 +387,7 @@ class FaydaKapisiTesti(unittest.TestCase):
 		self.assertTrue(all(a.reason == "no_benefit_vs_source" for a in r.attempts))
 
 	def test_hicbir_turev_kaynaktan_buyuk_degil(self):
-		p = R.profile_for("product.image", "w96")
+		p = R.profile_for(TEST_SLOT, "w96")
 		r = R.render_rendition(self.kucuk_kaynak, p)
 		self.assertLessEqual(r.size_bytes, len(self.kucuk_kaynak))
 
@@ -396,7 +403,7 @@ class FaydaKapisiTesti(unittest.TestCase):
 		self.assertTrue(r.attempts[1].accepted)
 
 	def test_passthrough_yasaklanabilir(self):
-		p = R.profile_for("product.image", "w96")
+		p = R.profile_for(TEST_SLOT, "w96")
 		with self.assertRaises(R.RenderError):
 			R.render_rendition(self.kucuk_kaynak, p, allow_passthrough=False)
 
@@ -411,7 +418,7 @@ class AdaptifKaliteTesti(unittest.TestCase):
 		self.kaynak = kaydet(gradyan(400, 400), "JPEG", quality=95)
 
 	def test_encode_butcesi_asilmaz(self):
-		p = R.profile_for("product.image", "w192")
+		p = R.profile_for(TEST_SLOT, "w384")
 		for butce in (1, 2, 4):
 			r = R.render_rendition(self.kaynak, p, max_encodes=butce)
 			self.assertLessEqual(r.encodes, butce, f"bütçe {butce} aşıldı: {r.encodes}")
@@ -422,9 +429,18 @@ class AdaptifKaliteTesti(unittest.TestCase):
 	def test_hedef_ssim_politikadan_gelir(self):
 		import tradehub_core.media.pipeline.quality.ssim as S
 
-		self.assertEqual(
-			R.resolve_target_ssim("product.image", "photo"), S.target_for("product.image", "photo")
-		)
+		self.assertEqual(R.resolve_target_ssim(TEST_SLOT, "photo"), S.target_for(TEST_SLOT, "photo"))
+
+	def test_sabit_kipte_ssim_kapilamaz_ama_olculur(self):
+		"""product.image (şema v1.5.0 `fixed`): hedef 0, tek encode q80, SSIM rapor için ölçülür."""
+		self.assertEqual(R.rendition_quality_mode("product.image"), R.QUALITY_MODE_FIXED)
+		self.assertEqual(R.resolve_target_ssim("product.image", "text"), 0.0)
+		self.assertEqual(R.rendition_quality_mode(TEST_SLOT), "ssim_search")
+		r = R.render_rendition(self.kaynak, R.profile_for("product.image", "w192"), allow_passthrough=False)
+		self.assertEqual((r.format, r.quality, r.encodes), ("webp", 80, 1))
+		self.assertEqual((r.width, r.height), (192, 192))
+		self.assertGreater(r.ssim, 0.0)
+		self.assertNotIn(R.NOTE_SSIM_UNKNOWN, r.notes)
 
 	def test_kalite_uydurulmaz(self):
 		"""Hedef SSIM de kalibre kalite de yoksa modül sayı UYDURMAZ, hata verir."""
@@ -485,7 +501,7 @@ class RenderSozlesmesiTesti(unittest.TestCase):
 	def test_merdiven_yetersiz_kaynaktan_basamak_uretmez(self):
 		"""INV-01: clamp edilmiş sahte basamak değil, gerçek omission gerekir."""
 		kucuk = kaydet(gradyan(160, 160), "JPEG", quality=95)
-		sonuc = R.render_ladder(kucuk, "product.image")
+		sonuc = R.render_ladder(kucuk, TEST_SLOT)
 		self.assertEqual([r.profile.width for r in sonuc], [96])
 		self.assertTrue(all(not r.upscale_blocked for r in sonuc))
 
@@ -497,9 +513,9 @@ class RenderSozlesmesiTesti(unittest.TestCase):
 		self.assertEqual(len(sonuc), len(beklenen))
 
 	def test_merdiven_bicim_zorlanabilir(self):
-		alt = R.load_profiles("product.image")[:3]
-		sonuc = R.render_ladder(self.kaynak, "product.image", formats=("webp",), profiles=alt)
-		self.assertEqual(len(sonuc), 3)
+		alt = R.load_profiles(TEST_SLOT)[:2]
+		sonuc = R.render_ladder(self.kaynak, TEST_SLOT, formats=("webp",), profiles=alt)
+		self.assertEqual(len(sonuc), 2)
 		self.assertTrue(all(r.format == "webp" for r in sonuc))
 
 	def test_merdiven_desteklenmeyen_bicim_hata(self):
@@ -514,7 +530,7 @@ class RenderSozlesmesiTesti(unittest.TestCase):
 		self.assertEqual(R.ladder_totals([])["count"], 0)
 
 	def test_sonuc_kunyesi_json_lanabilir(self):
-		r = R.render_rendition(self.kaynak, R.profile_for("product.image", "w96"))
+		r = R.render_rendition(self.kaynak, R.profile_for(TEST_SLOT, "w96"))
 		json.dumps(r.as_dict(), ensure_ascii=False)
 		self.assertEqual(r.name, f"{r.profile.name}.{r.format}")
 		self.assertTrue(r.filename_suffix.startswith("_w96"))
@@ -528,8 +544,8 @@ class RenderSozlesmesiTesti(unittest.TestCase):
 
 class TuretmeAnahtariTesti(unittest.TestCase):
 	def setUp(self):
-		self.p = R.profile_for("product.image", "w96")
-		self.ortak = dict(master_sha256="a" * 64, slot_key="product.image", profile_name="w96", fmt="webp")
+		self.p = R.profile_for(TEST_SLOT, "w96")
+		self.ortak = dict(master_sha256="a" * 64, slot_key=TEST_SLOT, profile_name="w96", fmt="webp")
 
 	def test_ayni_girdi_ayni_anahtar(self):
 		self.assertEqual(RP.derivation_key(**self.ortak), RP.derivation_key(**self.ortak))
@@ -560,7 +576,7 @@ class TuretmeAnahtariTesti(unittest.TestCase):
 class DefterTesti(unittest.TestCase):
 	def setUp(self):
 		self.kaynak = kaydet(gradyan(400, 400), "JPEG", quality=95)
-		self.p = R.profile_for("product.image", "w96")
+		self.p = R.profile_for(TEST_SLOT, "w96")
 
 	def test_ikinci_kosum_encode_etmez(self):
 		defter = RP.RenditionLedger()
@@ -647,7 +663,7 @@ class DefterTesti(unittest.TestCase):
 		"""
 		kucuk = kaydet(gurultu(128, 128, seed=3), "JPEG", quality=12, optimize=True)
 		defter = RP.RenditionLedger()
-		sonuclar, kararlar = RP.render_ladder_idempotent(kucuk, "product.image", ledger=defter)
+		sonuclar, kararlar = RP.render_ladder_idempotent(kucuk, TEST_SLOT, ledger=defter)
 		self.assertTrue(any(r.passthrough for r in sonuclar), "passthrough kurulamadı")
 		self.assertTrue(all(k.action == RP.ACTION_RENDER for k in kararlar))
 		self.assertIsNone(defter.by_sha(RP.content_hash(kucuk)))
@@ -656,7 +672,7 @@ class DefterTesti(unittest.TestCase):
 
 	def test_nesil_kaybi_olculur(self):
 		"""Korumanın gerekçesi: tekrar encode bilgi yok ediyor mu — ÖLÇÜLÜR."""
-		p = R.profile_for("product.image", "w96")
+		p = R.profile_for(TEST_SLOT, "w96")
 		satirlar = RP.generation_loss(self.kaynak, p, rounds=3)
 		self.assertGreaterEqual(len(satirlar), 2)
 		self.assertEqual(satirlar[0]["ssim_vs_original"], 1.0)

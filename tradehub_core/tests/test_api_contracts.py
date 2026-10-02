@@ -620,6 +620,20 @@ class KirpmaTesti(unittest.TestCase):
 		yanit = env.call(api.save_intent, SATICI, "MA-1", focal_x=0.9, focal_y=0.9, if_match=etag)
 		self.assertEqual(yanit.status, 412)
 
+	def test_taze_etag_ile_kayit_kabul_edilir(self):
+		api = self.kur()
+		etag = api.get_intent(SATICI, "MA-1").headers["ETag"]
+		yanit = env.call(api.save_intent, SATICI, "MA-1", focal_x=0.7, focal_y=0.4, if_match=etag)
+		self.assertEqual(yanit.status, 200)
+
+	def test_kayit_yanitinin_etagi_sonraki_kayitta_gecer(self):
+		api = self.kur()
+		ilk = api.save_intent(SATICI, "MA-1", focal_x=0.2, focal_y=0.2)
+		yanit = env.call(
+			api.save_intent, SATICI, "MA-1", focal_x=0.3, focal_y=0.3, if_match=ilk.headers["ETag"]
+		)
+		self.assertEqual(yanit.status, 200)
+
 	def test_bilinmeyen_profil_override_reddedilir(self):
 		api = self.kur()
 		yanit = env.call(
@@ -632,11 +646,11 @@ class KirpmaTesti(unittest.TestCase):
 		api = self.kur()
 		r = api.save_intent(
 			SATICI, "MA-1",
-			overrides=[{"profile": "w96", "x": 0.1, "y": 0.1, "w": 0.5, "h": 0.5}],
+			overrides=[{"profile": "w192", "x": 0.1, "y": 0.1, "w": 0.5, "h": 0.5}],
 		)
-		w96 = next(w for w in r.body["windows"] if w["profile"] == "w96")
-		self.assertEqual(w96["method"], "override")
-		self.assertEqual(w96["priority"], 1)
+		w192 = next(w for w in r.body["windows"] if w["profile"] == "w192")
+		self.assertEqual(w192["method"], "override")
+		self.assertEqual(w192["priority"], 1)
 
 	def test_guvenli_alan_disari_tasarsa_reddedilir(self):
 		api = self.kur()
@@ -715,14 +729,14 @@ class KirpmaTesti(unittest.TestCase):
 
 	def test_onizleme_pencere_dondurur(self):
 		api = self.kur()
-		r = api.preview(SATICI, "MA-1", profile="w96")
+		r = api.preview(SATICI, "MA-1", profile="w192")
 		self.assertEqual(r.status, 200)
-		self.assertEqual(r.body["window"]["profile"], "w96")
+		self.assertEqual(r.body["window"]["profile"], "w192")
 		self.assertIsNone(r.body["image"])
 
 	def test_onizleme_kaydedilmemis_niyeti_kullanir(self):
 		api = self.kur()
-		r = api.preview(SATICI, "MA-1", profile="w96", intent={"focal_x": 0.2, "focal_y": 0.2})
+		r = api.preview(SATICI, "MA-1", profile="w192", intent={"focal_x": 0.2, "focal_y": 0.2})
 		self.assertEqual(r.body["window"]["method"], "focal")
 		self.assertFalse(api.get_intent(SATICI, "MA-1").body["exists"], "önizleme yazma yaptı")
 
@@ -733,14 +747,14 @@ class KirpmaTesti(unittest.TestCase):
 	@unittest.skipUnless(pillow_var() and URUN_GORSELI.is_file(), "Pillow ya da fixture yok")
 	def test_onizleme_gorsel_uretir(self):
 		api = self.kur(icerik=URUN_GORSELI.read_bytes())
-		r = api.preview(SATICI, "MA-1", profile="w96", include_image=True)
+		r = api.preview(SATICI, "MA-1", profile="w192", include_image=True)
 		self.assertTrue((r.body["image"] or "").startswith("data:image/"))
 		self.assertEqual(r.body["image_reason"], "measured")
 
 	def test_gorsel_uretilemezse_pencere_yine_doner(self):
 		"""Kadraj saf aritmetiktir; kodlayıcı yoksa da cevap verilebilmeli."""
 		api = self.kur()
-		r = api.preview(SATICI, "MA-1", profile="w96", include_image=True)
+		r = api.preview(SATICI, "MA-1", profile="w192", include_image=True)
 		self.assertEqual(r.status, 200)
 		self.assertIsNone(r.body["image"])
 		self.assertTrue(r.body["image_reason"])
@@ -1018,15 +1032,15 @@ class ManifestUreticiTesti(unittest.TestCase):
 		self.assertTrue(anahtar.name.endswith("__w96.webp"))
 
 	def test_pick_hedefi_karsilayan_en_kucugu_secer(self):
-		"""Merdiven: 96, 192, 384, 640, 768, 1280, 1920."""
+		"""Merdiven (2026-09-30): 192, 384, 768, 1280 — eskiden 96…1920 yedi basamak."""
 		self.assertEqual(self.b.pick("product.image", 100, dpr=1.0).width, 192)
-		self.assertEqual(self.b.pick("product.image", 96, dpr=1.0).width, 96, "tam denk gelen basamak")
+		self.assertEqual(self.b.pick("product.image", 192, dpr=1.0).width, 192, "tam denk gelen basamak")
 		self.assertEqual(self.b.pick("product.image", 192, dpr=2.0).width, 384, "384 = 192×2")
-		self.assertEqual(self.b.pick("product.image", 200, dpr=2.0).width, 640, "400 > 384 → bir üst basamak")
+		self.assertEqual(self.b.pick("product.image", 200, dpr=2.0).width, 768, "400 > 384 → bir üst basamak")
 
 	def test_pick_hicbiri_yetmezse_en_buyugu(self):
 		"""Büyütme yerine yetersiz servis — FR-028 ile tutarlı."""
-		self.assertEqual(self.b.pick("product.image", 5000, dpr=3.0).width, 1920)
+		self.assertEqual(self.b.pick("product.image", 5000, dpr=3.0).width, 1280)
 
 	def test_overshoot_tavana_karsi_olculebilir(self):
 		"""Politikadaki `max_overshoot` (1,85) bu sayının tavanı."""
@@ -1146,7 +1160,14 @@ class YonetimTesti(unittest.TestCase):
 		self.assertTrue(all(s["quality_calibrated"] for s in avif))
 		self.assertEqual({s["quality"] for s in avif}, {61})
 
-	def test_kuru_calistirma_kucuk_gorseli_reddeder(self):
+	def test_kuru_calistirma_kucuk_gorseli_artik_kabul_eder(self):
+		"""2026-09-29 kare kuralı: reddetme yok. ÖNCEDEN 500×500 `product.image`
+		slotunda `short_edge_too_small` ile reddediliyordu; ürüne bağlanan
+		görsel artık kare 1000–2000 px beyaz dolguya otomatik çevrildiği için
+		(media/kare.py) bu RET kapısı kaldırıldı. Vektör (500×500 probe)
+		SİLİNMEDİ, yalnız beklenti KABUL'e çevrildi — hâlâ `master_under_spec`
+		BİLGİ (warn) satırı taşıyor.
+		"""
 		r = self.kur().evaluate_policy(
 			YONETICI,
 			slot_key="product.image",
@@ -1155,8 +1176,8 @@ class YonetimTesti(unittest.TestCase):
 				"detected": "jpeg", "fmt": "JPEG", "readable": True, "byte_size": 10_000,
 			},
 		)
-		self.assertFalse(r.body["allow"])
-		self.assertIn("product_image_short_edge_too_small", [v["code"] for v in r.body["violations"]])
+		self.assertTrue(r.body["allow"])
+		self.assertIn("product_image_master_under_spec", [v["code"] for v in r.body["violations"]])
 
 	def test_kuru_calistirma_tanimayan_alani_bildirir(self):
 		r = self.kur().evaluate_policy(

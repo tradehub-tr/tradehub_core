@@ -109,10 +109,17 @@ def _candidates(cursor: str, limit: int) -> list[str]:
 
 
 def _ready(doc, content_hash: str, slot: str) -> bool:
-	"""Güncel AVIF politikasıyla tamamlanmış, diskteki aktif sürümü atla."""
+	"""Güncel politikayla tamamlanmış, diskteki aktif sürümü atla.
+
+	Biçim kontrolü politikadan okunur (eskiden sabit `avif` idi): 2026-09-30
+	product.image merdiveni yalnız WebP üretir; sabit `avif` kontrolü yeni
+	WebP sürümünü hiç "hazır" saymaz ve backfill onu sonsuza dek yeniden
+	üretirdi.
+	"""
 	from tradehub_core.media.pipeline.image.render import load_slot_policy
 
 	policy = load_slot_policy(slot)
+	bicimler = {str(f).lower() for p in (policy.get("profiles") or ()) for f in (p.get("formats") or ())}
 	rows = frappe.db.sql(
 		"""SELECT r.file_url, r.format, v.policy_snapshot FROM `tabMedia Asset` a
 		JOIN `tabMedia Version` v ON v.name=a.active_version
@@ -126,7 +133,7 @@ def _ready(doc, content_hash: str, slot: str) -> bool:
 		(content_hash, slot, ownership.store_of(doc.owner) or "", pipeline_bridge._engine_version()),
 	)
 	return bool(rows) and all(
-		fmt.lower() == "avif"
+		fmt.lower() in bicimler
 		and json.loads(snapshot or "{}") == policy
 		and url
 		and url.startswith("/files/")
@@ -135,7 +142,16 @@ def _ready(doc, content_hash: str, slot: str) -> bool:
 	)
 
 
-def _process_file(name: str) -> tuple[str, str]:
+def _process_file(
+	name: str, *, dry_run: bool = False, slot_only: str | tuple[str, ...] | None = None
+) -> tuple[str, str]:
+	"""Tek dosya: güncel politikada hazırsa atla, değilse türevleri üret.
+
+	`dry_run`: üretim yapılmaz, hazır olmayan dosya `("would_generate", "")`
+	döner (tek düğme orkestratörünün provası ve kuyruk öncesi seçimi).
+	`slot_only`: dosya başka bir slota (ya da demetteki slotların hiçbirine) çözülüyorsa
+	`("skipped", "other_slot")`.
+	"""
 	if not frappe.db.exists("File", name):
 		return "skipped", "deleted"
 	doc = frappe.get_doc("File", name)
@@ -145,6 +161,9 @@ def _process_file(name: str) -> tuple[str, str]:
 	slot = pipeline_bridge._resolve_scope(doc)
 	if not slot:
 		return "skipped", "out_of_scope"
+	# `slot_only` tek slot ya da slot demeti (tek düğme mağaza adımı: logo + kapak).
+	if slot_only and slot not in ((slot_only,) if isinstance(slot_only, str) else tuple(slot_only)):
+		return "skipped", "other_slot"
 	if not pipeline_flags.is_slot_enabled(slot) or not pipeline_flags.is_store_enabled(
 		ownership.store_of(doc.owner)
 	):
@@ -154,6 +173,8 @@ def _process_file(name: str) -> tuple[str, str]:
 		return "failed", "source_unreadable"
 	if _ready(doc, content_hash, slot):
 		return "already_ready", ""
+	if dry_run:
+		return "would_generate", ""
 	pipeline_bridge._run_rendition_job(doc.file_url, force=True, file_name=doc.name, backfill=True)
 	if _ready(doc, content_hash, slot):
 		return "generated", ""

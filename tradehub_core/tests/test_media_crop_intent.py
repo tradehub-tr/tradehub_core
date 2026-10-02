@@ -381,3 +381,35 @@ class MediaCropIntentTests(FrappeTestCase):
 			"tradehub_core.permissions.media_crop_intent_has_permission",
 			hooks.get("has_permission", {}).get(INTENT, []),
 		)
+
+	def test_fresh_etag_round_trip_through_frappe_endpoint(self):
+		"""Panelin ETag deseni: get_intent.etag → save_intent(if_match) → 200."""
+		frappe.set_user(self.owner)
+		etag = media_crop.get_intent(asset=self.asset)["etag"]
+		yazma = media_crop.save_intent(asset=self.asset, focal_x=0.78, focal_y=0.45, if_match=etag)
+		self.assertEqual(yazma["status"], 200)
+		ikinci = media_crop.save_intent(
+			asset=self.asset, focal_x=0.5, focal_y=0.5, if_match=yazma["etag"]
+		)
+		self.assertEqual(ikinci["status"], 200)
+
+	def test_focal_only_save_keeps_safe_area_and_confidence(self):
+		"""Önizleme penceresi YALNIZ odak gönderir; güvenli alan ve güven korunur."""
+		frappe.set_user(self.owner)
+		media_crop.save_intent(
+			asset=self.asset,
+			focal_x=0.2,
+			focal_y=0.2,
+			safe_area={"x": 0.1, "y": 0.1, "w": 0.5, "h": 0.5},
+			confidence=0.6,
+		)
+		media_crop.save_intent(asset=self.asset, focal_x=0.78, focal_y=0.45)
+		frappe.set_user("Administrator")
+		kayit = frappe.db.get_value(
+			INTENT, self.asset, ["focal_x", "focal_y", "safe_x", "safe_w", "confidence"], as_dict=True
+		)
+		self.assertAlmostEqual(kayit.focal_x, 0.78, places=6)
+		self.assertAlmostEqual(kayit.focal_y, 0.45, places=6)
+		self.assertAlmostEqual(kayit.safe_x, 0.1, places=6)
+		self.assertAlmostEqual(kayit.safe_w, 0.5, places=6)
+		self.assertAlmostEqual(kayit.confidence, 0.6, places=6)

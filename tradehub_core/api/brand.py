@@ -123,6 +123,10 @@ def get_brand_detail(slug=None, code=None, page=1, page_size=20, sort_by="modifi
 				"country": seller.get("country") or "",
 				"logo": seller.get("logo") or "",
 			}
+			# Satıcı rozeti 16 px basılıyor: WebP türevi (`logo_media.srcset`), ham master değil.
+			from tradehub_core.api.media_manifest import magaza_medyasi_ekle
+
+			magaza_medyasi_ekle([owner_info], {"logo": "seller.logo"}, "code")
 
 	# Country name resolution
 	country_name = ""

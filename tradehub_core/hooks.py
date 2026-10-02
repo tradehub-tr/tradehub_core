@@ -502,6 +502,8 @@ doc_events = {
 			# Listing save'inde her zaman çalışır; bulk_import context'inde de
 			# aynı pipeline'a girer (Bulk Import Job bağlamı dispatcher içinde set edilir).
 			"tradehub_core.eca.dispatcher.evaluate_rules_two_phase",
+			# 2026-09-30 — bayat form 301'li eski görsel adresini geri yazmasın (kare C1)
+			"tradehub_core.media.kare.yonlendirilmis_gorselleri_esle",
 		],
 		"on_update": [
 			"tradehub_core.seo.hooks_seo.invalidate_url_cache",
@@ -522,6 +524,8 @@ doc_events = {
 			"tradehub_core.services.tuple_sync.on_listing_update",
 			# SEO görsel adresi: sahip-slug önbelleği (başlık/görsel değişti).
 			"tradehub_core.media.seo_url.invalidate_owner_cache",
+			# 2026-09-29 — ürün görselini kare 1000–2000 beyaz dolguya çevir (spec urun-gorseli-kare)
+			"tradehub_core.media.kare.on_listing_update",
 		],
 		"after_insert": [
 			"tradehub_core.api.listing.invalidate_listing_cache",
@@ -690,6 +694,8 @@ doc_events = {
 			"tradehub_core.utils.owner_lock.enforce_owner_only_fields",
 			# version-15 — SEO meta length warn
 			"tradehub_core.seo.hooks_seo.validate_seo_lengths",
+			# 2026-09-30 — bayat form 301'li eski mağaza görseli adresini geri yazmasın
+			"tradehub_core.media.magaza_gorseli.yonlendirilmis_gorselleri_esle",
 		],
 		"after_insert": [
 			"tradehub_core.utils.seller_role_sync.sync_marketplace_seller_role",
@@ -703,8 +709,15 @@ doc_events = {
 			"tradehub_core.seo.hooks_seo.invalidate_sitemap_for",
 			# #C2 — owner (user) değişiminde ReBAC owner/member tuple'larını hizala.
 			"tradehub_core.services.tuple_sync.on_admin_seller_profile_update",
+			# 2026-09-30 — yeni logo/kapak/galeri görseli WebP master'a (oran + alfa korunur)
+			"tradehub_core.media.magaza_gorseli.on_seller_profile_update",
 		],
 		"on_trash": "tradehub_core.services.tuple_sync.on_admin_seller_profile_trash",
+	},
+	# 2026-09-30 — vitrin slayt görselleri WebP master'a; bayat form 301'li adresi geri yazmasın
+	"Storefront Layout": {
+		"validate": "tradehub_core.media.magaza_gorseli.vitrin_yonlendirmelerini_esle",
+		"on_update": "tradehub_core.media.magaza_gorseli.on_storefront_layout_update",
 	},
 	# CRM kayıtlarında seller'ı creator'dan otomatik resolve et + lead/deal_owner
 	# alanını da creator'a sabitle (Faz 1 tek kullanıcı modeli, UI'da atama yok).

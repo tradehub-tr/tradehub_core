@@ -123,3 +123,24 @@ class SellerMediaHistoryTests(SellerBrowseTestBase):
 		# olarak görünür; iki hata türü arasında ayrım sızdırılmaz.
 		with self.assertRaises(frappe.DoesNotExistError):
 			seller_media.get_my_media_history(self.b.public_url)
+
+	def test_archived_asset_versions_are_hidden_when_a_current_asset_exists(self):
+		"""Kare backfill: emekli varlığın eski boyutları güncel veriyi gölgelemez."""
+		old_asset = self._asset(store=self.a.store, file_url=self.a.public_url, tag="old")
+		new_asset = self._asset(store=self.a.store, file_url=self.a.public_url, tag="new")
+		frappe.db.set_value("Media Asset", old_asset, "state", "archived")
+		frappe.db.commit()
+
+		self._as_seller(self.a)
+		result = seller_media.get_my_media_history(self.a.public_url)
+		self.assertEqual({row["name"] for row in result["assets"]}, {old_asset, new_asset})
+		self.assertEqual({row["asset"] for row in result["versions"]}, {new_asset})
+		self.assertEqual(result["totals"]["versions"], 1)
+
+		# Hepsi arşivliyse geçmiş boş kalmaz.
+		frappe.set_user("Administrator")
+		frappe.db.set_value("Media Asset", new_asset, "state", "archived")
+		frappe.db.commit()
+		self._as_seller(self.a)
+		result = seller_media.get_my_media_history(self.a.public_url)
+		self.assertEqual({row["asset"] for row in result["versions"]}, {old_asset, new_asset})

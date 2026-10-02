@@ -28,6 +28,9 @@
   "quality",
   "ssim",
   "benefit_gate_passed",
+  "output_dpi",
+  "output_colorspace",
+  "output_has_alpha",
   "sb_time",
   "generated_at",
   "last_access_at",
@@ -184,6 +187,28 @@
    "description": "Türev kaynaktan yeterince küçük mü. Geçmeyen türev üretilir ama servis edilmez — yoksa 'optimizasyon' dosyayı büyütür."
   },
   {
+   "fieldname": "output_dpi",
+   "fieldtype": "Int",
+   "label": "Çıktı DPI",
+   "read_only": 1,
+   "description": "Üretilen DOSYADAN okunan DPI (konteyner ya da EXIF çözünürlük etiketi). 0 = dosyada DPI kaydı yok; varsayılan değer yazılmaz. Boş renk uzayı = henüz ölçülmedi."
+  },
+  {
+   "fieldname": "output_colorspace",
+   "fieldtype": "Data",
+   "label": "Çıktı Renk Uzayı",
+   "read_only": 1,
+   "description": "Dosyadan ölçülen renk uzayı: gömülü ICC profilinin adı (sRGB, Display P3…) ya da profil yoksa piksel kipi (RGB = etiketsiz, CMYK, Gray). Boş = ölçülmedi."
+  },
+  {
+   "fieldname": "output_has_alpha",
+   "fieldtype": "Check",
+   "label": "Çıktıda Alfa",
+   "default": "0",
+   "read_only": 1,
+   "description": "Dosyada alfa kanalı ya da saydamlık bilgisi var mı (ölçüm)."
+  },
+  {
    "fieldname": "sb_time",
    "fieldtype": "Section Break",
    "label": "Zaman"
@@ -235,7 +260,7 @@
  "issingle": 0,
  "istable": 0,
  "links": [],
- "modified": "2026-08-23 00:00:00.000000",
+ "modified": "2026-09-30 12:00:00.000000",
  "modified_by": "Administrator",
  "module": "Tradehub Core",
  "name": "Media Rendition",
