@@ -53,7 +53,14 @@ import frappe
 from frappe import _
 from frappe.utils import add_to_date, get_datetime, now_datetime
 
-from tradehub_core.media import kare, pipeline_flags, rendition_backfill, retro_rename, seo_generate
+from tradehub_core.media import (
+	kare,
+	pipeline_flags,
+	queue_fallback,
+	rendition_backfill,
+	retro_rename,
+	seo_generate,
+)
 from tradehub_core.media.pipeline.core.queues import IMAGE_BULK, IMAGE_LIVE
 
 SLOT = "product.image"
@@ -198,7 +205,7 @@ def _profil_kontrolu(slot: str) -> dict:
 def _worker_sayisi(kuyruk: str) -> int:
 	from frappe.utils.background_jobs import get_queue, get_workers
 
-	return len(get_workers(get_queue(kuyruk)))
+	return len(get_workers(get_queue(queue_fallback.resolve_queue(kuyruk))))
 
 
 def on_kontroller() -> list[dict]:
@@ -230,14 +237,18 @@ def on_kontroller() -> list[dict]:
 		except Exception:
 			frappe.log_error(title=f"Tek düğme: worker sayılamadı {kuyruk}", message=frappe.get_traceback())
 			adet = 0
+		# Kuyruk tanımlı değilse işler `long`'a düşer (queue_fallback); mesaj
+		# operatöre gerçekte hangi kuyruğun sayıldığını söyler.
+		gercek = queue_fallback.resolve_queue(kuyruk)
+		ad = kuyruk if gercek == kuyruk else f"{kuyruk} → {gercek}"
 		kontroller.append(
 			{
 				"key": f"workers_{kuyruk.replace('-', '_')}",
 				"ok": adet > 0,
 				"message": (
-					_("{0} kuyruğunda {1} worker çalışıyor.").format(kuyruk, adet)
+					_("{0} kuyruğunda {1} worker çalışıyor.").format(ad, adet)
 					if adet
-					else _("{0} kuyruğunu dinleyen worker yok.").format(kuyruk)
+					else _("{0} kuyruğunu dinleyen worker yok.").format(ad)
 				),
 			}
 		)
@@ -412,9 +423,17 @@ def _kuyruk_yuku() -> int:
 	from rq.registry import StartedJobRegistry
 
 	toplam = 0
+	dusus = False
 	for ad in (IMAGE_LIVE.name, IMAGE_BULK.name):
+		if not queue_fallback.is_configured(ad):
+			dusus = True
+			continue
 		q = get_queue(ad)
 		toplam += int(q.count) + len(StartedJobRegistry(queue=q))
+	if dusus:
+		# Düşüş kuyruğu (`long`) bu işin KENDİSİNİ de koşturuyor: çalışan işleri
+		# saymak kendi kendini beklemek olur. Yalnız bekleyenler sayılır.
+		toplam += int(get_queue(queue_fallback.FALLBACK_QUEUE).count)
 	return toplam
 
 
@@ -516,12 +535,16 @@ def _turevleri_uret(durum: dict, anahtar: str, urls: list[str], slotlar: tuple[s
 
 	from tradehub_core.media import pipeline_bridge
 
+	if not queue_fallback.is_configured(pipeline_bridge.RQ_QUEUE_BULK):
+		_turevleri_burada_uret(durum, adim, bekleyen, slotlar)
+		return
+
 	kimlikler: dict[str, dict] = {}
 	for f in bekleyen:
 		kimlik = _is_kimligi(job_key, f"{f.file_url}|{f.owner}")
 		frappe.enqueue(
 			"tradehub_core.media.pipeline_bridge._run_rendition_job",
-			queue=pipeline_bridge.RQ_QUEUE_BULK,
+			queue=queue_fallback.resolve_queue(pipeline_bridge.RQ_QUEUE_BULK),
 			timeout=pipeline_bridge.QUEUE_TIMEOUT_BULK_SECONDS,
 			enqueue_after_commit=False,
 			job_id=kimlik,
@@ -564,6 +587,42 @@ def _turevleri_uret(durum: dict, anahtar: str, urls: list[str], slotlar: tuple[s
 			_neden(adim, "not_ready_after_generation")
 	if adim["state"] != "stopped":
 		adim["state"] = "partial" if adim["failed"] else "done"
+
+
+def _turevleri_burada_uret(durum: dict, adim: dict, bekleyen: list[dict], slotlar: tuple[str, ...]) -> None:
+	"""Bulk kuyruğu tanımsızken (prod: yalnız short/default/long) türevleri bu işte üret.
+
+	Bu iş `long`'da koşuyor; çocuk işleri de `long`'a atıp beklemek tek `long`
+	worker'lı bir bench'te kendi kendini kilitler (çocuklar ebeveyn bitene dek
+	başlamaz). Aynı `_process_file` yolu (`force=True, backfill=True`) burada
+	sırayla çağrılır — sonuç sayımı kuyruk yoluyla aynı.
+	"""
+	job_key = durum["job_key"]
+	adim["queued"] = len(bekleyen)
+	for i, f in enumerate(bekleyen):
+		if _durdu_mu(job_key):
+			adim.update(state="stopped", message=_("Operatör durdurdu."))
+			return
+		try:
+			sonuc, neden = rendition_backfill._process_file(f.name, slot_only=slotlar)
+			frappe.db.commit()
+		except Exception:
+			frappe.db.rollback()
+			frappe.log_error(title=f"Tek düğme: türev üretimi {f.name}", message=frappe.get_traceback())
+			sonuc, neden = "failed", "generation_error"
+		if sonuc in ("generated", "already_ready"):
+			adim["changed"] += 1
+		elif sonuc == "skipped":
+			adim["skipped"] += 1
+			_neden(adim, neden)
+		else:
+			adim["failed"] += 1
+			_neden(adim, neden or "not_ready_after_generation")
+		adim["processed"] = i + 1
+		if i % 10 == 0:
+			_kilidi_tazele(job_key)
+			_kaydet(durum)
+	adim["state"] = "partial" if adim["failed"] else "done"
 
 
 _ADIM_FONKSIYONLARI = {

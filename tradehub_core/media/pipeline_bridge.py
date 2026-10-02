@@ -99,7 +99,15 @@ from typing import Any
 import frappe
 from frappe.utils import get_files_path, now_datetime
 
-from tradehub_core.media import audit, meter, ownership, pipeline_flags, presets, upload_policy
+from tradehub_core.media import (
+	audit,
+	meter,
+	ownership,
+	pipeline_flags,
+	presets,
+	queue_fallback,
+	upload_policy,
+)
 from tradehub_core.media.pipeline.core import queues as media_queues
 from tradehub_core.media.rendition_ledger import (
 	content_sha256,
@@ -294,7 +302,7 @@ def maybe_generate_renditions(doc: Any, method: str | None = None) -> None:
 
 		frappe.enqueue(
 			"tradehub_core.media.pipeline_bridge._run_rendition_job",
-			queue=RQ_QUEUE,
+			queue=queue_fallback.resolve_queue(RQ_QUEUE),
 			timeout=QUEUE_TIMEOUT_LIVE_SECONDS,
 			enqueue_after_commit=True,
 			file_url=doc.get("file_url"),
@@ -1053,7 +1061,7 @@ def _run_rendition_job(
 			if video_slot:
 				frappe.enqueue(
 					"tradehub_core.media.pipeline_bridge._run_animation_job",
-					queue=RQ_QUEUE_VIDEO,
+					queue=queue_fallback.resolve_queue(RQ_QUEUE_VIDEO),
 					timeout=media_queues.VIDEO.timeout_seconds,
 					enqueue_after_commit=True,
 					job_id=(
@@ -1189,7 +1197,7 @@ def enqueue_catalog_backfill(limit: int = 100) -> dict[str, int]:
 		job_hash = hashlib.sha1(url.encode("utf-8"), usedforsecurity=False).hexdigest()  # noqa: S324 -- kimlik, kripto değil
 		frappe.enqueue(
 			"tradehub_core.media.pipeline_bridge._run_rendition_job",
-			queue=RQ_QUEUE_BULK,
+			queue=queue_fallback.resolve_queue(RQ_QUEUE_BULK),
 			timeout=QUEUE_TIMEOUT_BULK_SECONDS,
 			enqueue_after_commit=False,
 			job_id=f"media-rendition-backfill::{job_hash}",
@@ -1307,7 +1315,7 @@ def rendition_backfill_status() -> dict[str, int]:
 	try:
 		from frappe.utils.background_jobs import get_queue
 
-		queue_depth = int(get_queue(RQ_QUEUE).count)
+		queue_depth = int(get_queue(queue_fallback.resolve_queue(RQ_QUEUE)).count)
 	except Exception:
 		queue_depth = 0
 	return {
@@ -1342,7 +1350,7 @@ def retry_failed_renditions(limit: int = 50) -> dict[str, int]:
 		job_hash = hashlib.sha1(str(url).encode("utf-8"), usedforsecurity=False).hexdigest()  # noqa: S324
 		frappe.enqueue(
 			"tradehub_core.media.pipeline_bridge._run_rendition_job",
-			queue=RQ_QUEUE_BULK,
+			queue=queue_fallback.resolve_queue(RQ_QUEUE_BULK),
 			timeout=QUEUE_TIMEOUT_BULK_SECONDS,
 			enqueue_after_commit=False,
 			job_id=f"media-rendition-retry::{job_hash}",
@@ -1444,10 +1452,14 @@ def _enqueue_scheduled_policy_item(
 	"""One asset → one RQ job; delayed jobs retain Frappe site/user context."""
 	method = "tradehub_core.media.pipeline_bridge._run_policy_reprocess_item"
 	job_id = f"media-policy-reprocess::{token}::{index}"
-	if delay_seconds <= 0:
+	# Bulk kuyruğu tanımsızsa (prod: yalnız short/default/long) gecikmeli iş
+	# `long`'un zamanlanmış kaydında sonsuza dek bekler: standart `bench worker`
+	# RQ scheduler'ı çalıştırmaz, terfi ettiren ayrı bulk worker da yok. Hız
+	# sınırını kaybetmek, işi kaybetmekten iyidir — hemen kuyruğa al.
+	if delay_seconds <= 0 or not queue_fallback.is_configured(RQ_QUEUE_BULK):
 		return frappe.enqueue(
 			method,
-			queue=RQ_QUEUE_BULK,
+			queue=queue_fallback.resolve_queue(RQ_QUEUE_BULK),
 			timeout=QUEUE_TIMEOUT_BULK_SECONDS,
 			enqueue_after_commit=False,
 			job_id=job_id,
@@ -1677,7 +1689,9 @@ def maybe_reprocess_after_crop(asset_name: str) -> None:
 		return
 	frappe.enqueue(
 		"tradehub_core.media.pipeline_bridge._run_crop_reprocess_job",
-		queue=RQ_QUEUE_VIDEO if str(varlik.get("media_type") or "") == _MEDIA_TYPE_VIDEO else RQ_QUEUE,
+		queue=queue_fallback.resolve_queue(
+			RQ_QUEUE_VIDEO if str(varlik.get("media_type") or "") == _MEDIA_TYPE_VIDEO else RQ_QUEUE
+		),
 		timeout=(
 			media_queues.VIDEO.timeout_seconds
 			if str(varlik.get("media_type") or "") == _MEDIA_TYPE_VIDEO
@@ -3605,7 +3619,7 @@ def _maybe_enqueue_video(doc: Any) -> None:
 
 	frappe.enqueue(
 		"tradehub_core.media.pipeline_bridge._run_video_job",
-		queue=RQ_QUEUE_VIDEO,
+		queue=queue_fallback.resolve_queue(RQ_QUEUE_VIDEO),
 		timeout=media_queues.VIDEO.timeout_seconds,
 		enqueue_after_commit=True,
 		file_url=doc.get("file_url"),

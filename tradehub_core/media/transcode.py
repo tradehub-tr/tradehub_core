@@ -65,7 +65,7 @@ import os
 import frappe
 from frappe.utils import now_datetime
 
-from tradehub_core.media import audit, jobs, ownership
+from tradehub_core.media import audit, jobs, ownership, queue_fallback
 from tradehub_core.media.pipeline.security import isolation
 from tradehub_core.media.pipeline.video import probe as video_probe
 
@@ -190,7 +190,7 @@ def enqueue_transcode(file_url: str) -> None:
 		# edilmemiş olabileceğinden `enqueue_after_commit=True`.
 		frappe.enqueue(
 			"tradehub_core.media.video_poster.generate",
-			queue="media-maint",
+			queue=queue_fallback.resolve_queue("media-maint"),
 			timeout=300,
 			file_url=file_url,
 			enqueue_after_commit=True,
@@ -203,7 +203,7 @@ def enqueue_transcode(file_url: str) -> None:
 	_stamp_started(name, attempts=0)
 	frappe.enqueue(
 		"tradehub_core.media.transcode._run_transcode",
-		queue=VIDEO_RQ_QUEUE,
+		queue=queue_fallback.resolve_queue(VIDEO_RQ_QUEUE),
 		timeout=QUEUE_TIMEOUT_SECONDS,
 		file_url=file_url,
 		name=name,
@@ -537,7 +537,7 @@ def retry_failed(file_url: str) -> dict:
 	frappe.db.set_value("File", name, "th_media_video_status", VIDEO_STATUS_PROCESSING)
 	frappe.enqueue(
 		"tradehub_core.media.transcode._run_transcode",
-		queue=VIDEO_RQ_QUEUE,
+		queue=queue_fallback.resolve_queue(VIDEO_RQ_QUEUE),
 		timeout=QUEUE_TIMEOUT_SECONDS,
 		file_url=file_url,
 		name=name,
@@ -588,7 +588,7 @@ def sweep_stuck_transcodes(limit: int = 200) -> dict:
 			frappe.db.commit()
 			frappe.enqueue(
 				"tradehub_core.media.transcode._run_transcode",
-				queue=VIDEO_RQ_QUEUE,
+				queue=queue_fallback.resolve_queue(VIDEO_RQ_QUEUE),
 				timeout=QUEUE_TIMEOUT_SECONDS,
 				file_url=k.file_url,
 				name=k.name,

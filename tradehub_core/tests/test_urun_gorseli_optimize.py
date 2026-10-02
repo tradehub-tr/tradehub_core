@@ -76,6 +76,39 @@ class TestUrunGorseliOptimize(FrappeTestCase):
 		# Kilit bırakıldı.
 		self.assertFalse(frappe.cache.exists(retro_rename.ACTIVE_KEY))
 
+	# ── kuyruk düşüşü (prod: medya kuyrukları tanımsız) ──
+
+	def test_bulk_kuyrugu_tanimsizken_turevler_bu_iste_uretilir(self):
+		"""Ebeveyn `long`'da; çocukları `long`'a atıp beklemek tek worker'da kilitlenirdi."""
+		k = self._kosu_hazirla(dry_run=False)
+		durum = opt.kosu(k)
+		dosya = frappe._dict(name="F-1", file_url="/files/a.webp", owner="x@example.com")
+		with (
+			mock.patch.object(opt.queue_fallback, "is_configured", return_value=False),
+			mock.patch.object(opt, "_kuyrugun_bosalmasini_bekle", return_value=True),
+			mock.patch.object(opt, "_urun_dosyalari", return_value=[dosya]),
+			mock.patch.object(opt, "_slotta_mi", return_value=("would_generate", "")),
+			mock.patch.object(
+				opt.rendition_backfill, "_process_file", return_value=("generated", "")
+			) as uret,
+			mock.patch.object(frappe, "enqueue") as kuyruk,
+		):
+			opt._turevleri_uret(durum, "turev", ["/files/a.webp"], (opt.SLOT,))
+		kuyruk.assert_not_called()
+		uret.assert_called_once_with("F-1", slot_only=(opt.SLOT,))
+		adim = opt._adim(durum, "turev")
+		self.assertEqual((adim["changed"], adim["failed"], adim["state"]), (1, 0, "done"))
+
+	def test_worker_kontrolu_dusus_kuyrugunu_sayar(self):
+		with (
+			mock.patch.object(opt.queue_fallback, "resolve_queue", return_value="long"),
+			mock.patch.object(opt, "_worker_sayisi", return_value=2),
+		):
+			kontroller = {k["key"]: k for k in opt.on_kontroller()}
+		live = kontroller["workers_media_image_live"]
+		self.assertTrue(live["ok"])
+		self.assertIn("media-image-live → long", live["message"])
+
 	# ── ön kontrol ──
 
 	def test_on_kontrol_hatasi_gercek_kosuyu_durdurur(self):

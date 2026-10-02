@@ -15,7 +15,7 @@ import frappe
 from frappe.utils import now_datetime
 from frappe.utils.background_jobs import get_redis_conn
 
-from tradehub_core.media import ownership, pipeline_bridge, pipeline_flags, upload_policy
+from tradehub_core.media import ownership, pipeline_bridge, pipeline_flags, queue_fallback, upload_policy
 from tradehub_core.media.pipeline.core.queues import IMAGE_BULK
 
 STATE_KEY = "media_rendition_backfill_avif_v2"
@@ -78,7 +78,7 @@ def enqueue_pending() -> dict:
 		get_redis_conn().ping()
 		frappe.enqueue(
 			"tradehub_core.media.rendition_backfill.run_batch",
-			queue=IMAGE_BULK.name,
+			queue=queue_fallback.resolve_queue(IMAGE_BULK.name),
 			timeout=IMAGE_BULK.timeout_seconds,
 			enqueue_after_commit=False,
 			job_id=f"{STATE_KEY}:{state['cursor']}:{state['attempts']}",
