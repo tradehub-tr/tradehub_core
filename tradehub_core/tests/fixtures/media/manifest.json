@@ -51,16 +51,18 @@
    "malicious": 10
   },
   "expected_action_dagilimi": {
-   "process": 27,
+   "process": 35,
    "passthrough": 8,
-   "reject": 22
+   "reject": 14,
+   "not_2026_09_29": "product.image'da 8 fixture reject→process çevrildi (kare kuralı, require.{min_short_edge,min_area,allowed_ratios,ratio_tolerance} kaldırıldı); eski dağılım process=27/reject=22."
   }
  },
  "fixtures": [
   {
    "file": "tradehub_core/tests/fixtures/media/images/p01_18mp_1mb.jpg",
    "class": "photo",
-   "expected_action": "reject",
+   "expected_action": "process",
+   "not": "2026-09-29 kare kuralı: reddetme yok",
    "expect": {
     "format": "JPEG",
     "mode": "RGB",
@@ -69,13 +71,13 @@
     "megapixels": 17.92,
     "bytes_max": 1400000
    },
-   "neden": "Dokümanın P-01 tuzağı: küçük dosya (1 MB) ama 17,92 MP. Kabul kapısı megapikseli DOSYA BOYUTUNDAN değil başlıktan okumak zorunda; bayta bakan bir kapı bunu 'küçük dosya' sanıp geçirir. Oranı 3:2 olduğu için product.image bandında (1:1/4:5/3:4) değil → ret. RET GEREKÇESİ ORANDIR ve karar 18 MP'yi hiç decode etmeden verilmelidir.",
+   "neden": "Dokümanın P-01 tuzağı: küçük dosya (1 MB) ama 17,92 MP. Kabul kapısı megapikseli DOSYA BOYUTUNDAN değil başlıktan okumak zorunda; bayta bakan bir kapı bunu 'küçük dosya' sanıp geçirir. ÖNCEDEN oranı 3:2 olduğu için product.image bandında (1:1/4:5/3:4) değildi → ret. GÜNCELLENDİ 2026-09-29 (kare kuralı): `require.allowed_ratios` kaldırıldı (ürüne bağlanan görsel artık kare 1000–2000 px beyaz dolguya otomatik çevriliyor, media/kare.py) — bu dosya artık KABUL edilir; karar hâlâ 18 MP'yi hiç decode etmeden, yalnız başlıktan verilir.",
    "kaynak": "canlı-veriden-türetilmiş",
    "slot": "product.image",
    "kural": [
     "FR-011",
     "FR-015",
-    "require.allowed_ratios"
+    "require.allowed_ratios (KALDIRILDI 2026-09-29)"
    ],
    "olculen": {
     "bytes": 1074753,
@@ -371,20 +373,21 @@
   {
    "file": "tradehub_core/tests/fixtures/media/images/geom_strip_400x4000.png",
    "class": "graphic",
-   "expected_action": "reject",
+   "expected_action": "process",
+   "not": "2026-09-29 kare kuralı: reddetme yok",
    "expect": {
     "format": "PNG",
     "mode": "RGB",
     "width": 400,
     "height": 4000
    },
-   "neden": "Oran 1:10, kısa kenar 400. İki bağımsız kural birden ihlal ediliyor (kısa kenar < 1000 VE oran bandı dışı). Ret mesajının HANGİ kuralı söylediği de test edilir: kullanıcıya tek bir uygulanabilir düzeltme verilmeli (FR-062).",
+   "neden": "Oran 1:10, kısa kenar 400. ÖNCEDEN iki bağımsız kural birden ihlal ediliyordu (kısa kenar < 1000 VE oran bandı dışı). GÜNCELLENDİ 2026-09-29 (kare kuralı): `require.{min_short_edge,allowed_ratios,ratio_tolerance}` kaldırıldı — ürüne bağlanan görsel artık kare 1000–2000 px beyaz dolguya otomatik çevriliyor (media/kare.py); bu dosya artık KABUL edilir (uzun kenar 4000 ≥ master.min_long_edge 1000 olduğu için `master_under_spec` uyarısı bile üretmez).",
    "kaynak": "sentetik",
    "slot": "product.image",
    "kural": [
     "FR-015",
     "FR-016",
-    "require.min_short_edge"
+    "require.min_short_edge (KALDIRILDI 2026-09-29)"
    ],
    "olculen": {
     "bytes": 2419618,
@@ -415,7 +418,8 @@
   {
    "file": "tradehub_core/tests/fixtures/media/images/geom_1x1.png",
    "class": "graphic",
-   "expected_action": "reject",
+   "expected_action": "process",
+   "not": "2026-09-29 kare kuralı: reddetme yok",
    "expect": {
     "format": "PNG",
     "mode": "RGB",
@@ -423,12 +427,12 @@
     "height": 1,
     "bytes_max": 500
    },
-   "neden": "Dejenere alt sınır. Alan hesabı, oran bölmesi ve küçültme mantığının 1 pikselde sıfıra bölme / negatif boyut üretmediğini doğrular.",
+   "neden": "Dejenere alt sınır. Alan hesabı, oran bölmesi ve küçültme mantığının 1 pikselde sıfıra bölme / negatif boyut üretmediğini doğrular. GÜNCELLENDİ 2026-09-29 (kare kuralı): `require.min_area` kaldırıldı — bu dosya artık KABUL edilir (`master_under_spec` BİLGİ uyarısıyla, uzun kenar 1 ≪ master.min_long_edge 1000); dejenere-boyut testi artık motorun 1 pikselde çökmediğini KABUL yolunda doğruluyor.",
    "kaynak": "sentetik",
    "slot": "product.image",
    "kural": [
     "FR-015",
-    "require.min_area"
+    "require.min_area (KALDIRILDI 2026-09-29)"
    ],
    "olculen": {
     "bytes": 69,
@@ -459,7 +463,8 @@
   {
    "file": "tradehub_core/tests/fixtures/media/images/exif_orientation6.jpg",
    "class": "graphic",
-   "expected_action": "reject",
+   "expected_action": "process",
+   "not": "2026-09-29 kare kuralı: reddetme yok",
    "expect": {
     "format": "JPEG",
     "mode": "RGB",
@@ -467,7 +472,7 @@
     "height": 1600,
     "exif_orientation": 6
    },
-   "neden": "SIRALAMA testi. Saklanan 1200×1600 → oran 0,75 = 3:4, product.image bandında KABUL. EXIF orientation=6 uygulandıktan sonra 1600×1200 → oran 1,333, bantta YOK → RET. Oranı transpose ÖNCESİ ölçen bir uygulama bu dosyayı YANLIŞLIKLA kabul eder. Bu fixture'ın tek ayırt edici özelliği budur.",
+   "neden": "SIRALAMA testi. Saklanan 1200×1600 → oran 0,75 = 3:4, product.image bandında KABUL. EXIF orientation=6 uygulandıktan sonra 1600×1200 → oran 1,333. ÖNCEDEN bant DIŞIYDI → RET (oranı transpose ÖNCESİ ölçen bir uygulama bu dosyayı YANLIŞLIKLA kabul ederdi). GÜNCELLENDİ 2026-09-29 (kare kuralı): `require.allowed_ratios` kaldırıldığı için artık HER oran kabul ediliyor — bu dosya da KABUL edilir. Sıralama testinin yeni kanıtı `normalized_targets.master`in transpose SONRASI (1600×1200) ölçüyü kullanmasıdır; transpose öncesi (1200×1600) ölçen bir uygulama farklı bir master üretirdi.",
    "kaynak": "sentetik",
    "slot": "product.image",
    "kural": [
@@ -804,20 +809,21 @@
   {
    "file": "tradehub_core/tests/fixtures/media/images/edge_short32.jpg",
    "class": "photo",
-   "expected_action": "reject",
+   "expected_action": "process",
+   "not": "2026-09-29 kare kuralı: reddetme yok",
    "expect": {
     "format": "JPEG",
     "mode": "RGB",
     "width": 32,
     "height": 48
    },
-   "neden": "Canlıdaki EN KÜÇÜK kısa kenar. Reddedilmeli; kabul edilirse sistem asla upscale yapmayacağı için (FR-028) w96 dışındaki hiçbir profil üretilemez.",
+   "neden": "Canlıdaki EN KÜÇÜK kısa kenar. ÖNCEDEN reddedilirdi çünkü kabul edilirse eski master motoru asla upscale yapmadığından (FR-028) w96 dışındaki hiçbir profil üretilemiyordu. GÜNCELLENDİ 2026-09-29 (kare kuralı): `require.min_short_edge` kaldırıldı — ürüne bağlanan görsel artık kare 1000–2000 px beyaz dolguya otomatik çevriliyor (media/kare.py). DİKKAT: `kare.py` da BÜYÜTMEZ (`im.thumbnail` yalnız küçültür) — 32×48 gibi bir orijinal, 1000×1000 beyaz tuvalin ortasına KÜÇÜK hâliyle yapıştırılır (FR-028 upscale-yasağı kare.py'de de geçerli, yalnız RET yerine küçük-görünür-kabul olarak sonuçlanıyor). Politika kararı seviyesinde dosya artık KABUL edilir (`master_under_spec` BİLGİ uyarısıyla); görsel kalitesi ayrı bir konudur, bu vektörün kapsamı değildir.",
    "kaynak": "canlı-veriden-türetilmiş",
    "slot": "product.image",
    "kural": [
     "FR-015",
     "FR-028",
-    "require.min_short_edge"
+    "require.min_short_edge (KALDIRILDI 2026-09-29)"
    ],
    "olculen": {
     "bytes": 1368,
@@ -948,20 +954,21 @@
   {
    "file": "tradehub_core/tests/fixtures/media/images/bound_short999.jpg",
    "class": "photo",
-   "expected_action": "reject",
+   "expected_action": "process",
+   "not": "2026-09-29 kare kuralı: reddetme yok",
    "expect": {
     "format": "JPEG",
     "mode": "RGB",
     "width": 999,
     "height": 999
    },
-   "neden": "SINIR — alt yaka. Kısa kenar 999 < 1000 ve alan 998.001 < 1.000.000. `>` yerine `>=` yazan bir uygulama bunu geçirmez ama `>=` ile `>` karışıklığı ancak eşleniğiyle (bound_short1000) birlikte yakalanır.",
+   "neden": "SINIR — alt yaka. ÖNCEDEN kısa kenar 999 < 1000 ve alan 998.001 < 1.000.000 nedeniyle reddediliyordu (`>` yerine `>=` yazan bir uygulama bunu geçirmezdi, ama `>=` ile `>` karışıklığı ancak eşleniğiyle (bound_short1000) birlikte yakalanırdı). GÜNCELLENDİ 2026-09-29 (kare kuralı): `require.{min_short_edge,min_area}` kaldırıldı — bu dosya artık KABUL edilir; sınır testinin yeni kanıtı `master_under_spec` BİLGİ uyarısının 999'da ÜRETİLİP 1000'de ÜRETİLMEMESİdir (master.min_long_edge=1000, eşiği hâlâ `>=` ile uygulanıyor).",
    "kaynak": "sentetik",
    "slot": "product.image",
    "kural": [
     "FR-015",
-    "require.min_short_edge=1000",
-    "require.min_area"
+    "require.min_short_edge=1000 (KALDIRILDI 2026-09-29)",
+    "require.min_area (KALDIRILDI 2026-09-29)"
    ],
    "olculen": {
     "bytes": 250720,
@@ -2497,7 +2504,8 @@
   {
    "file": "tradehub_core/tests/fixtures/media/images/real_foto_canon_2240x2905.tif",
    "class": "photo",
-   "expected_action": "reject",
+   "expected_action": "process",
+   "not": "2026-09-29 kare kuralı: reddetme yok",
    "expect": {
     "format": "TIFF",
     "mode": "RGBA",
@@ -2509,12 +2517,12 @@
      200
     ]
    },
-   "neden": "AS-27 eksiği: korpusun İLK gerçek kamera fotoğrafı (Canon EOS 5D Mark IV EXIF'i dosyada; korpus bugüne dek tümüyle sentetikti). Oran 0,771 → bugünkü product.image bandı dışında; konteynerde gerçek motorla ölçüldü: evaluate → reject/ratio_not_allowed. Gerçek satıcı fotoğrafının bile bantta takılması FR-147/09-slot uyumsuzluk geriliminin fixture hâli. content_rules kalibrasyonu (AS-27) için gerçek-fotoğraf tohumu — tek dosya kalibrasyon DEĞİLDİR.",
+   "neden": "AS-27 eksiği: korpusun İLK gerçek kamera fotoğrafı (Canon EOS 5D Mark IV EXIF'i dosyada; korpus bugüne dek tümüyle sentetikti). Oran 0,771 → ÖNCEDEN product.image bandı dışındaydı (evaluate → reject/ratio_not_allowed); gerçek satıcı fotoğrafının bile bantta takılması FR-147/09-slot uyumsuzluk geriliminin fixture hâliydi. GÜNCELLENDİ 2026-09-29 (kare kuralı): `require.allowed_ratios` kaldırıldı (ürüne bağlanan görsel artık kare 1000–2000 px beyaz dolguya otomatik çevriliyor, media/kare.py) — tam bu gerilimi çözmek için: gerçek satıcı fotoğrafı artık HER oranda KABUL edilir. content_rules kalibrasyonu (AS-27) için gerçek-fotoğraf tohumu — tek dosya kalibrasyon DEĞİLDİR.",
    "kaynak": "gerçek — DEV canlı satıcı fotoğrafı",
    "slot": "product.image",
    "kural": [
     "FR-016",
-    "require.allowed_ratios",
+    "require.allowed_ratios (KALDIRILDI 2026-09-29)",
     "AS-27"
    ],
    "olculen": {
@@ -2549,7 +2557,8 @@
   {
    "file": "tradehub_core/tests/fixtures/media/images/real_adobergb_3780x2717.png",
    "class": "photo",
-   "expected_action": "reject",
+   "expected_action": "process",
+   "not": "2026-09-29 kare kuralı: reddetme yok",
    "expect": {
     "format": "PNG",
     "mode": "RGBA",
@@ -2562,12 +2571,12 @@
      300
     ]
    },
-   "neden": "T-061/3 eksiği: gerçek 'Adobe RGB (1998)' ICC profilli üretici görseli (profil tanımı konteynerde ImageCms ile okundu; DEV'de 11 AdobeRGB dosya bulundu). ΔE/renk dönüşümü ölçümü artık fixture'lı: ICC sRGB'ye dönüştürülmeden kırpılırsa renk kayması sessizce üretilir. Oran 1,391 → bant dışı; evaluate → reject/ratio_not_allowed (ölçüldü).",
+   "neden": "T-061/3 eksiği: gerçek 'Adobe RGB (1998)' ICC profilli üretici görseli (profil tanımı konteynerde ImageCms ile okundu; DEV'de 11 AdobeRGB dosya bulundu). ΔE/renk dönüşümü ölçümü artık fixture'lı: ICC sRGB'ye dönüştürülmeden kırpılırsa renk kayması sessizce üretilir. Oran 1,391 → ÖNCEDEN bant dışıydı; evaluate → reject/ratio_not_allowed (ölçüldü). GÜNCELLENDİ 2026-09-29 (kare kuralı): `require.allowed_ratios` kaldırıldı — bu dosya artık KABUL edilir; ICC/renk dönüşümü ölçümünün amacı DEĞİŞMEDİ (master.colorspace=srgb hâlâ uygulanıyor).",
    "kaynak": "gerçek — DEV canlı satıcı görseli",
    "slot": "product.image",
    "kural": [
     "FR-016",
-    "require.allowed_ratios",
+    "require.allowed_ratios (KALDIRILDI 2026-09-29)",
     "master.colorspace=srgb",
     "T-061/3"
    ],

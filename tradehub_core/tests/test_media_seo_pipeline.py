@@ -735,7 +735,9 @@ class TestTopluDenetim(FrappeTestCase):
 		bulgular = self._cwv_bulgular(
 			[self._sahte_turev("w768", "webp", 768, 768)],
 			width=800,
-			height=1000,  # 4:5 — policy `allowed_ratios` içinde
+			height=1000,  # 4:5 — gerçekçi ürün görseli oranı (2026-09-29 kare kuralı öncesi
+			# policy `require.allowed_ratios` içindeydi; bu test o kısıttan bağımsız
+			# çalışıyor, yalnız gerçekçi bir örnek oran olarak korunuyor)
 		)
 		self.assertNotIn("aspect_ratio_mismatch", [b["code"] for b in bulgular])
 

@@ -214,3 +214,21 @@ class OlculenTelefon(unittest.TestCase):
 
 if __name__ == "__main__":  # pragma: no cover
 	unittest.main(verbosity=2)
+
+
+class StorefrontTsBlogu(unittest.TestCase):
+	"""`--emit-ts` bloğu tabloyla birebir (2026-09-30: elle kopya T-115'i kaçırmıştı)."""
+
+	def test_blok_her_bolgeyi_uretilen_dizgeyle_tasir(self):
+		blok = SZ.emit_ts()
+		self.assertTrue(blok.startswith(SZ.TS_BLOK_BASI))
+		self.assertIn(SZ.TS_BLOK_SONU, blok)
+		for anahtar in SZ.region_keys():
+			self.assertIn(f'  "{anahtar}": "{SZ.sizes_for(anahtar)}",', blok)
+			self.assertIn(f'| "{anahtar}"', blok)
+
+	def test_ana_sayfa_izgarasi_kenarlik_duzeltmesini_tasir(self):
+		"""7 sütun × (16px boşluk + 2px kart kenarlığı) − 16 = 110px (T-115 ölçümü)."""
+		dizge = SZ.sizes_for("home/hero_showcase_grid")
+		self.assertIn("(min-width: 1536px) calc((min(100vw, 1840px) - 64px - 110px) / 7)", dizge)
+		self.assertIn("(min-width: 1024px) calc((min(100vw, 1840px) - 32px - 92px) / 6)", dizge)

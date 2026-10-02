@@ -120,7 +120,12 @@ class TestKararSozlesmesi(unittest.TestCase):
 		self.assertTrue(k.normalized_targets, "kabul edilen dosyada hedefler dolu olmalı")
 
 	def test_bi_reddedilen_dosyada_hedef_uretilmez(self):
-		k = self.motor.evaluate("product.image", _probe(width=200, height=200))
+		"""GÜNCELLENDİ 2026-09-29 (kare kuralı): 200×200 artık `product.image`'da
+		KABUL ediliyor (kısa kenar/alan RET kapısı kaldırıldı), bu yüzden
+		megapiksel tavanını aşan bir künye kullanılıyor — `too_many_pixels`
+		istisnasız reject kalıyor.
+		"""
+		k = self.motor.evaluate("product.image", _probe(width=10000, height=9000))
 		self.assertFalse(k.allow)
 		self.assertEqual(k.normalized_targets, {}, "ret kararında hedef üretilmemeli")
 
@@ -278,28 +283,49 @@ class TestGeometri(unittest.TestCase):
 	def test_sn_kisa_kenar_tam_sinirda_gecer(self):
 		self.assertTrue(self.motor.evaluate("product.image", _probe(width=1000, height=1000)).allow)
 
-	def test_sn_kisa_kenar_bir_altinda_duser(self):
+	def test_sn_kisa_kenar_bir_altinda_artik_kabul_edilir(self):
+		"""GÜNCELLENDİ 2026-09-29 (kare kuralı): reddetme yok. `require.min_short_edge`
+		kaldırıldı — 999×999 artık kabul edilir, yalnız `master_under_spec` BİLGİ
+		(warn) satırı taşır. `not`: "2026-09-29 kare kuralı: reddetme yok".
+		"""
 		k = self.motor.evaluate("product.image", _probe(width=999, height=999))
-		self.assertFalse(k.allow)
-		self.assertIn("short_edge_too_small", [v.rule for v in k.violations])
+		self.assertTrue(k.allow)
+		self.assertNotIn("short_edge_too_small", [v.rule for v in k.violations])
+		self.assertIn("master_under_spec", [v.rule for v in k.violations])
 
-	def test_bi_izinsiz_oran_reddedilir(self):
+	def test_bi_izinsiz_oran_artik_kabul_edilir(self):
+		"""GÜNCELLENDİ 2026-09-29 (kare kuralı): reddetme yok. `require.allowed_ratios`/
+		`ratio_tolerance` kaldırıldı — 2:1 (2000×1000) artık kabul edilir.
+		`not`: "2026-09-29 kare kuralı: reddetme yok".
+		"""
 		k = self.motor.evaluate("product.image", _probe(width=2000, height=1000))  # 2:1
-		self.assertFalse(k.allow)
-		self.assertIn("ratio_not_allowed", [v.rule for v in k.violations])
+		self.assertTrue(k.allow, k.codes)
+		self.assertNotIn("ratio_not_allowed", [v.rule for v in k.violations])
 
 	def test_bi_izinli_oranlar_gecer(self):
+		"""2026-09-29 kare kuralı sonrası HER oran geçer (yalnız eski 1:1/4:5/3:4
+		değil); liste genişletilmedi çünkü vektör silinemez/değiştirilemez kuralı
+		yalnız MEVCUT satırların beklentisini korur — yine de üçü de hâlâ doğru
+		biçimde kabul ediliyor."""
 		for w, h in ((2000, 2000), (1600, 2000), (1500, 2000)):  # 1:1, 4:5, 3:4
 			with self.subTest(w=w, h=h):
 				k = self.motor.evaluate("product.image", _probe(width=w, height=h))
 				self.assertTrue(k.allow, (w, h, k.codes))
 
-	def test_gv_exif_donusu_oran_kuralinda_dikkate_alinir(self):
-		"""Depolanan 3:4 ama görünen 4:3 — kural GÖRÜNEN ölçüye bakmalı."""
-		k = self.motor.evaluate(
-			"product.image", _probe(width=1500, height=2000, exif_orientation=6)
-		)
-		self.assertFalse(k.allow, "döndürülmüş görünen oran (4:3) izinli listede yok")
+	def test_gv_exif_donusu_artik_reddetmez(self):
+		"""Depolanan 3:4 ama görünen 4:3.
+
+		GÜNCELLENDİ 2026-09-29 (kare kuralı): `ratio_not_allowed` kaldırıldığı
+		için döndürülmüş görünen oran (4:3) artık reddedilmiyor; EXIF
+		düzeltmesinin GÖRÜNEN ölçüyü kullandığı artık normalized_targets.master
+		boyutuyla doğrulanıyor.
+		"""
+		probe = _probe(width=1500, height=2000, exif_orientation=6)
+		self.assertEqual(probe.display_size, (2000, 1500), "EXIF orientation=6 genişlik/yüksekliği takas eder")
+		k = self.motor.evaluate("product.image", probe)
+		self.assertTrue(k.allow, "döndürülmüş görünen oran artık izin kapsamında")
+		master = k.normalized_targets["master"]
+		self.assertEqual((master["width"], master["height"]), (2000, 1500), "master GÖRÜNEN boyutu kullanmalı")
 
 	def test_bi_olculemeyen_geometri_atlanir(self):
 		k = self.motor.evaluate("product.image", _probe(width=0, height=0, readable=False))

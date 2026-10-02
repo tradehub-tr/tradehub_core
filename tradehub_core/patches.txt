@@ -369,3 +369,15 @@ tradehub_core.patches.v15_9_62_retarget_cart_favorite_snapshots
 # --- MOGEM-981: toplu yükleme yetim bağlantıları — indeks + silinmiş job başlıklarını geri yaz ---
 tradehub_core.patches.v15_9_63_listing_bulk_job_index
 tradehub_core.patches.v15_9_64_restore_orphan_bulk_import_jobs
+
+# --- Ürün görseli türevleri: 4 basamak WebP q80 (w192/384/768/1280); eski AVIF profilleri kapanır, kazara kapanmış profiller açılır ---
+tradehub_core.patches.v15_9_63_product_image_webp_profiles
+
+# --- Ürün görseli w1280 türevi WebP q88 (w192/384/768 q80 kalır) ---
+tradehub_core.patches.v15_9_64_product_image_w1280_q88
+
+# --- Görsel künyesi: File DPI/renk uzayı/alfa alanları + dosyadan ölçerek geriye dönük doldurma ---
+tradehub_core.patches.v15_9_65_media_image_facts
+
+# --- Mağaza görselleri türevleri: seller.logo w64/128/256 + company.cover_image 384–1920 WebP, oran korunur; eski AVIF profilleri kapanır ---
+tradehub_core.patches.v15_9_66_store_image_webp_profiles

@@ -175,31 +175,47 @@ class _Motor(unittest.TestCase):
 
 @unittest.skipUnless(pillow_var(), "Pillow yok — künye çıkarılamaz")
 class Senaryo01YetersizCozunurluk(_Motor):
-	"""Satıcı 1000×1000 altı görsel yükler → reddedilir, ne yapması gerektiğini öğrenir."""
+	"""2026-09-29 kare kuralı: satıcı 1000×1000 altı görsel yükler → artık KABUL edilir.
 
-	def test_999_piksel_reddedilir(self):
-		"""FR-015: `min_short_edge` kontrolü `>=` ile uygulanır; 999 REDDEDİLİR."""
+	ÖNCEDEN (FR-015): `require.min_short_edge=1000` `>=` ile uygulanıyordu, 999 px
+	REDDEDİLİYORDU. Ürüne bağlanan görsel artık kare 1000–2000 px beyaz dolguya
+	otomatik çevrildiği için (media/kare.py) bu RET kapısı kaldırıldı —
+	product-image.json `require`'dan `min_short_edge` silindi. Vektör silinmedi:
+	aynı fixture'lar (bound_short999.jpg/bound_short1000.jpg) kullanılmaya devam
+	ediyor, yalnız beklenen sonuç KABUL'e çevrildi. `not`: "2026-09-29 kare kuralı:
+	reddetme yok".
+	"""
+
+	def test_999_piksel_artik_kabul_edilir(self):
+		"""2026-09-29 kare kuralı: reddetme yok. 999 px artık kabul edilir; master
+		hâlâ 1000 px'in altında olduğu için `master_under_spec` UYARISI (bilgi
+		satırı) taşır — bu engelleyici değildir."""
 		karar = self.engine.evaluate("product.image", probe_file(IMAGES / "bound_short999.jpg"))
 
-		self.assertFalse(karar.allow, "999 px kısa kenar geçmemeliydi")
-		self.assertTrue(karar.blocking(), "ret var ama engelleyici ihlal yok")
+		self.assertTrue(karar.allow, f"999 px artık kabul edilmeliydi: {karar.codes}")
+		self.assertFalse(karar.blocking(), "kare kuralı sonrası engelleyici ihlal beklenmiyor")
+		self.assertIn("product_image_master_under_spec", karar.codes)
 
-	def test_1000_piksel_gecer_sinir_dahil(self):
-		"""FR-015: tam sınır (1000) KABUL edilir — `>` kullanılsa bu test kırılır."""
+	def test_1000_piksel_gecer_ve_artik_uyarisiz(self):
+		"""2026-09-29 kare kuralı: `master.min_long_edge` 2000 → 1000 indi, bu
+		yüzden 1000 px artık `master_under_spec` uyarısı bile taşımıyor."""
 		karar = self.engine.evaluate("product.image", probe_file(IMAGES / "bound_short1000.jpg"))
 
 		self.assertTrue(karar.allow, f"1000 px reddedildi: {karar.codes}")
+		self.assertNotIn("product_image_master_under_spec", karar.codes)
 
-	def test_satici_ne_yapacagini_ogrenir(self):
-		"""FR-062/FR-063: mesaj hem NEDEN'i hem NASIL'ı söylemeli, boş olmamalı."""
+	def test_satici_bilgilendirme_mesaji_okunabilir(self):
+		"""FR-062/FR-063: kare kuralı sonrası bu artık bir RET mesajı değil, bir
+		BİLGİ (warn) mesajıdır — ama yine de boş olmamalı, NEDEN'i söylemeli."""
 		karar = self.engine.evaluate("product.image", probe_file(IMAGES / "bound_short999.jpg"))
-		engelleyici = karar.blocking()[0]
+		bilgi = next(v for v in karar.violations if v.rule == "master_under_spec")
 
-		metin = (engelleyici.message or {}).get("tr", "")
-		ipucu = (engelleyici.hint or {}).get("tr", "")
+		metin = (bilgi.message or {}).get("tr", "")
+		ipucu = (bilgi.hint or {}).get("tr", "")
 
-		self.assertTrue(engelleyici.code, "makine kodu yok — istemci dallanamaz")
-		self.assertTrue(metin.strip(), f"kullanıcı mesajı boş: {engelleyici.message!r}")
+		self.assertTrue(bilgi.code, "makine kodu yok — istemci dallanamaz")
+		self.assertFalse(bilgi.blocking, "kare kuralı sonrası bu bir engelleyici ihlal olmamalı")
+		self.assertTrue(metin.strip(), f"kullanıcı mesajı boş: {bilgi.message!r}")
 		self.assertGreaterEqual(
 			len(metin.strip()), 20,
 			f"mesaj 'ne yapmalı'yı taşıyamayacak kadar kısa: {metin!r}",

@@ -77,6 +77,18 @@ class SeoImageRenderer:
 		return yanit
 
 	def _bulunamadi(self) -> Response:
+		# I6 (fix round 1, kare dönüşümü): kod artık `File.seo_code`'da yok ama
+		# eski içerik-adresli adres kare/retro-rename ile taşınmış olabilir —
+		# `Media URL Redirect` üzerinden yeni dosyaya 301. `MediaRedirectRenderer`
+		# bunu YAKALAYAMAZ: o yalnız `source_url`'in TIPKISINI (`self.path`) arıyor,
+		# oysa buradaki eski adres hash'li bir içerik-adresi, okunur slug değil.
+		hedef = seo_url.resolve_retired_code(self.path)
+		if hedef:
+			frappe.flags.redirect_location = hedef
+			yanit = RedirectPage(self.path, 301).render()
+			# Review M-5 ile aynı gerekçe: kanonik adres değişebilir, CDN uzun tutmasın.
+			yanit.headers["Cache-Control"] = CACHE_CONTROL_301
+			return yanit
 		kopru = MediaRedirectRenderer(self.path, self.http_status_code)
 		if kopru.can_render():
 			return kopru.render()

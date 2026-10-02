@@ -13,8 +13,12 @@
    `allow` kararı karşılaştırılır. `reject` → allow=False, `process`/
    `passthrough` → allow=True.
 
-3. **Sınır vakaları**: `bound_short999.jpg` REDDEDİLİR, `bound_short1000.jpg`
-   GEÇER. T-033'ün kabul ölçütü budur.
+3. **Sınır vakaları**: GÜNCELLENDİ 2026-09-29 (kare kuralı) — `product.image`
+   `require.min_short_edge` kaldırıldı (media/kare.py artık her girdiyi
+   1000–2000 px beyaz dolgulu kareye çeviriyor), bu yüzden `bound_short999.jpg`
+   VE `bound_short1000.jpg` ARTIK İKİSİ DE KABUL edilir; tek fark 999'un
+   `master_under_spec` BİLGİ satırı taşıması (`not`: "2026-09-29 kare kuralı:
+   reddetme yok").
 
 Çalıştırma (bench/site GEREKMEZ — bu ağaçta `import frappe` yok):
 
@@ -256,19 +260,28 @@ class PolitikaKaydiTesti(unittest.TestCase):
 
 
 class SinirVakalariTesti(unittest.TestCase):
-	"""T-033 kabul ölçütü: 999 kalır, 1000 geçer."""
+	"""GÜNCELLENDİ 2026-09-29 (kare kuralı): eski T-033 kabul ölçütü "999 kalır,
+	1000 geçer" idi (`require.min_short_edge=1000` RET kapısıydı). Ürüne bağlanan
+	görsel artık kare 1000–2000 px beyaz dolguya otomatik çevrildiği için
+	(media/kare.py) `product-image.json` `require`'dan `min_short_edge`
+	kaldırıldı — ikisi de artık KABUL edilir. Vektörler (fixture dosyaları)
+	SİLİNMEDİ; yalnız beklentiler güncellendi. `not`: "2026-09-29 kare kuralı:
+	reddetme yok".
+	"""
 
 	def setUp(self):
 		self.engine = PolicyEngine()
 
-	def test_bound_short999_reddedilir(self):
+	def test_bound_short999_artik_kabul_edilir(self):
 		karar = self.engine.evaluate(
 			"product.image", probe_file(IMAGES / "bound_short999.jpg"), role="seller"
 		)
-		self.assertFalse(karar.allow)
-		self.assertIn("product_image_short_edge_too_small", karar.codes)
-		ihlal = next(v for v in karar.violations if v.rule == "short_edge_too_small")
-		self.assertEqual(ihlal.action, ACTION_REJECT)
+		self.assertTrue(karar.allow)
+		self.assertNotIn("product_image_short_edge_too_small", karar.codes)
+		# Reddetmiyor ama sessiz de değil: 999 piksel master tabanının (1000) altında.
+		self.assertIn("product_image_master_under_spec", karar.codes)
+		ihlal = next(v for v in karar.violations if v.rule == "master_under_spec")
+		self.assertEqual(ihlal.action, ACTION_WARN)
 		self.assertEqual(ihlal.observed, 999)
 		self.assertEqual(ihlal.expected, 1000)
 
@@ -278,22 +291,21 @@ class SinirVakalariTesti(unittest.TestCase):
 		)
 		self.assertTrue(karar.allow)
 		self.assertNotIn("product_image_short_edge_too_small", karar.codes)
-		# Geçse de sessiz değil: 1000 piksel master tabanının (2000) altında.
-		self.assertIn("product_image_master_under_spec", karar.codes)
-		self.assertEqual(
-			next(v for v in karar.violations if v.rule == "master_under_spec").action,
-			ACTION_WARN,
-		)
+		# GÜNCELLENDİ 2026-09-29: master tabanı (min_long_edge) 2000 → 1000 indi,
+		# bu yüzden 1000 piksel artık master_under_spec bile üretmiyor.
+		self.assertNotIn("product_image_master_under_spec", karar.codes)
 
-	def test_tek_piksel_fark_kararı_degistiriyor(self):
-		"""İki fixture arasındaki TEK fark kısa kenar; karar ters dönüyor."""
+	def test_tek_piksel_fark_aksiyonu_degistiriyor(self):
+		"""GÜNCELLENDİ 2026-09-29: iki fixture arasındaki TEK fark kısa kenar;
+		artık `allow` DEĞİL ama `action` (pass ↔ warn) bu farkı yansıtıyor —
+		ret kapısı kalktı, bilgilendirme eşiği (master_under_spec) kaldı."""
 		a = probe_file(IMAGES / "bound_short999.jpg")
 		b = probe_file(IMAGES / "bound_short1000.jpg")
 		self.assertEqual(b.short_edge - a.short_edge, 1)
-		self.assertNotEqual(
-			self.engine.evaluate("product.image", a, role="seller").allow,
-			self.engine.evaluate("product.image", b, role="seller").allow,
-		)
+		karar_a = self.engine.evaluate("product.image", a, role="seller")
+		karar_b = self.engine.evaluate("product.image", b, role="seller")
+		self.assertEqual(karar_a.allow, karar_b.allow, "kare kuralı sonrası ikisi de kabul edilmeli")
+		self.assertNotEqual(karar_a.action, karar_b.action)
 
 
 class FixtureKorpusuTesti(unittest.TestCase):
@@ -390,15 +402,21 @@ class IhlalSozlesmesiTesti(unittest.TestCase):
 			self.assertTrue(ihlal.code.startswith("logo_"), ihlal.code)
 
 	def test_mesaj_metni_politikadan_gelir_katalogdan_degil(self):
-		"""TR metni slot politikasında varsa O kullanılır."""
+		"""TR metni slot politikasında varsa O kullanılır.
+
+		GÜNCELLENDİ 2026-09-29 (kare kuralı): `short_edge_too_small` kuralı
+		`product.image`'da artık üretilmiyor (`require.min_short_edge`
+		kaldırıldı); aynı vektör (`bound_short999.jpg`) hâlâ bir politika-
+		özel TR mesajı üreten `master_under_spec` kuralıyla test ediliyor.
+		"""
 		karar = self.engine.evaluate(
 			"product.image", probe_file(IMAGES / "bound_short999.jpg"), role="seller"
 		)
-		ihlal = next(v for v in karar.violations if v.rule == "short_edge_too_small")
-		politika_metni = self.engine.registry.get("product.image")["messages"]["tr"]["short_edge_too_small"]
+		ihlal = next(v for v in karar.violations if v.rule == "master_under_spec")
+		politika_metni = self.engine.registry.get("product.image")["messages"]["tr"]["master_under_spec"]
 		self.assertEqual(
 			ihlal.message["tr"],
-			politika_metni.format(kisa_kenar=999, gerekli_kisa_kenar=1000),
+			politika_metni.format(uzun_kenar=999, gerekli_uzun_kenar=1000),
 		)
 		self.assertIn("999", ihlal.message["tr"])
 		self.assertIn("1000", ihlal.message["tr"])
@@ -423,15 +441,25 @@ class KuralDavranisiTesti(unittest.TestCase):
 	def setUp(self):
 		self.engine = PolicyEngine()
 
-	def test_exif_rotasyonu_orana_uygulanir(self):
-		"""1200×1600 depolanmış, orientation=6 → görünen 1600×1200 = 4:3 → ret."""
+	def test_exif_rotasyonu_master_boyutuna_uygulanir(self):
+		"""1200×1600 depolanmış, orientation=6 → görünen 1600×1200.
+
+		GÜNCELLENDİ 2026-09-29 (kare kuralı): `product.image`'da
+		`ratio_not_allowed` kuralı kaldırıldı (`require.allowed_ratios` silindi),
+		bu yüzden döndürülmüş 4:3 görünen oran artık RET üretmiyor. EXIF
+		düzeltmesinin hâlâ GÖRÜNEN ölçüyü kullandığının kanıtı `normalized_targets.
+		master` boyutuna taşındı: ham (1200×1600) değil GÖRÜNEN (1600×1200)
+		boyut esas alınıyor.
+		"""
 		probe = probe_file(IMAGES / "exif_orientation6.jpg")
 		self.assertEqual((probe.width, probe.height), (1200, 1600))
 		self.assertEqual(probe.exif_orientation, 6)
 		self.assertEqual(probe.display_size, (1600, 1200))
 		karar = self.engine.evaluate("product.image", probe, role="seller")
-		self.assertFalse(karar.allow)
-		self.assertIn("product_image_ratio_not_allowed", karar.codes)
+		self.assertTrue(karar.allow)
+		self.assertNotIn("product_image_ratio_not_allowed", karar.codes)
+		master = karar.normalized_targets["master"]
+		self.assertEqual((master["width"], master["height"]), (1600, 1200))
 
 	def test_megapiksel_karari_dosya_boyutundan_bagimsiz(self):
 		"""97 KB'lık 100 MP dosya reddedilir (decompression bomb)."""
@@ -557,13 +585,17 @@ class NormalizeHedefTesti(unittest.TestCase):
 		self.engine = PolicyEngine()
 
 	def test_dpi_dususu_pikseli_dusurmez(self):
-		"""3000×3000@300dpi → 2400×2400@72dpi. 720×720 YASAK."""
+		"""3000×3000@300dpi → 2000×2000@72dpi. 720×720 YASAK.
+
+		GÜNCELLENDİ 2026-09-29 (kare kuralı): `master.max_long_edge` 2400 → 2000,
+		`max_megapixels` 5.76 → 4.0 indi (2000² = 4.0 MP, invariant korunuyor).
+		"""
 		probe = probe_file(IMAGES / "dpi_3000x3000_300dpi.tif")
 		self.assertEqual(probe.dpi, (300, 300))
 		karar = self.engine.evaluate("product.image", probe, role="seller")
 		self.assertTrue(karar.allow)
 		master = karar.normalized_targets["master"]
-		self.assertEqual((master["width"], master["height"]), (2400, 2400))
+		self.assertEqual((master["width"], master["height"]), (2000, 2000))
 		self.assertEqual(master["dpi_out"], 72)
 		self.assertNotEqual(master["width"], 720)
 
@@ -585,15 +617,16 @@ class NormalizeHedefTesti(unittest.TestCase):
 		for t in buyukler:
 			self.assertGreater(t["width"], 1000)
 
-	def test_logo_masteri_kare_paddir(self):
+	def test_logo_masteri_oran_korur_dolgusuz(self):
+		"""2026-09-30 kararı: mağaza logosu kare/dolgu YOK — oran ve alfa korunur,
+		master WebP ≤ 2000 px (`media/magaza_gorseli.py`)."""
 		probe = probe_file(IMAGES / "logo_alpha_512.png")
 		karar = self.engine.evaluate("seller.logo", probe, role="seller")
 		self.assertTrue(karar.allow)
 		master = karar.normalized_targets["master"]
-		self.assertEqual(master["fit"], "pad")
-		self.assertEqual(master["width"], master["height"])
-		self.assertEqual(master["pad_color"], "transparent")
-		self.assertEqual(master["encoding"], "lossless")
+		self.assertEqual(master["fit"], "contain")
+		self.assertNotEqual(master.get("pad_color"), "#FFFFFF")
+		self.assertLessEqual(max(master["width"], master["height"]), 2000)
 
 	def test_megapiksel_tavani_uzun_kenardan_once_baglar(self):
 		"""24:5 kapak: uzun kenar tavanı 2560, MP tavanı 1,64 — küçük olan bağlar."""
@@ -604,9 +637,15 @@ class NormalizeHedefTesti(unittest.TestCase):
 		self.assertLessEqual(max(master["width"], master["height"]), 2560)
 
 	def test_reddedilen_dosya_icin_hedef_uretilmez(self):
-		karar = self.engine.evaluate(
-			"product.image", probe_file(IMAGES / "bound_short999.jpg"), role="seller"
+		"""GÜNCELLENDİ 2026-09-29 (kare kuralı): `bound_short999.jpg` artık
+		`product.image`'da KABUL ediliyor (kısa kenar RET kapısı kaldırıldı),
+		bu yüzden test hâlâ engelleyici bir ihlal üreten decompression-bomb
+		fixture'ına taşındı — `too_many_pixels` istisnasız reject kalıyor.
+		"""
+		probe = probe_file(
+			ROOT / "tradehub_core" / "tests" / "fixtures" / "malicious" / "bomb_100mp.png"
 		)
+		karar = self.engine.evaluate("product.image", probe, role="seller")
 		self.assertFalse(karar.allow)
 		self.assertEqual(karar.normalized_targets, {})
 

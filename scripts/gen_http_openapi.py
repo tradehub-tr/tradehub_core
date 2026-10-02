@@ -1568,6 +1568,15 @@ SEMALAR: dict[str, Any] = {
 					"Türev üretilmemiş dosyada `null` — ÖLÇÜLDÜ."
 				),
 			},
+			"source": {
+				"type": ["object", "null"],
+				"description": (
+					"Kaynak DOSYADAN ölçülen künye `{status, dpi, colorspace, has_alpha}` "
+					"(`media/image_facts.py`). `status`: ok | unreadable | missing; `dpi` 0 = dosyada "
+					"DPI kaydı yok. Görsel olmayan dosyada `null`. Türev satırları aynı künyeyi "
+					"`output_dpi / output_colorspace / output_has_alpha` alanlarında taşır."
+				),
+			},
 		},
 	},
 	"FolderList": {

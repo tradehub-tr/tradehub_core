@@ -166,13 +166,15 @@ def get_session_user():
 				asp = frappe.db.get_value(
 					"Admin Seller Profile",
 					asp_name,
-					["name", "seller_code"],
+					["name", "seller_code", "seller_name"],
 					as_dict=True,
 				)
 				if asp:
 					admin_seller_profile = {
 						"name": asp.name,
 						"seller_code": asp.seller_code or asp.name,
+						# Görsel önizleme bağlamları mağaza adını gösterir (spec §4.2).
+						"seller_name": asp.seller_name or "",
 					}
 		except Exception:
 			frappe.log_error(f"Failed to fetch admin_seller_profile for user {frappe.session.user}", "auth.get_session_user")

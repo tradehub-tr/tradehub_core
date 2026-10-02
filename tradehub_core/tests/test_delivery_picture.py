@@ -231,7 +231,8 @@ class Preload(unittest.TestCase):
 		self.assertIn("imagesrcset=", link)
 		self.assertIn("imagesizes=", link)
 		self.assertIn('fetchpriority="high"', link)
-		self.assertIn('type="image/avif"', link)
+		# 2026-09-30: product.image yalnız WebP teslim ediyor (eskiden AVIF).
+		self.assertIn('type="image/webp"', link)
 
 	def test_olmayan_bicim_hata(self):
 		with self.assertRaises(P.PictureError):

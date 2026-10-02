@@ -229,6 +229,11 @@ _HASHED_NAME_RE = re.compile(r"^[0-9a-f]{32}$")
 
 _MEDIA_TYPE_IMAGE: str = "image"
 
+#: Tek teslim biçimi olarak üretilen modern biçimler: fayda kapısı (INV-05)
+#: bu biçimlerde basamağı DÜŞÜRMEZ, kaynağın kopyasına da dönmez. AVIF eski
+#: merdiven; WebP 2026-09-30 product.image merdiveni.
+_TEK_TESLIM_BICIMLERI: frozenset[str] = frozenset({"avif", "webp"})
+
 
 # --- 1) Kanca: karar mercii --------------------------------------------------
 
@@ -560,7 +565,18 @@ def _sensitive_twin_blocked(doc: Any) -> bool:
 _REFERENCE_LOOKUPS: tuple[tuple[str, str, str], ...] = (
 	("Listing", "primary_image", "product.image"),
 	("Listing Image", "image", "product.image"),
+	# 2026-09-30 — mağaza görselleri çoğunlukla `attached_to_*` boş yükleniyor
+	# (ölçüldü: vitrin slaytları, galeri, logonun ikinci File satırı). Eşleşme
+	# olmadan hepsi `library.image` (AVIF, 96–1920) oluyordu; mağaza türevleri
+	# (WebP, oran korunur) ilgili slotlardan üretilsin. Ürün eşleşmesi ÖNCE gelir.
+	("Admin Seller Profile", "logo", "seller.logo"),
+	("Admin Seller Profile", "banner_image", "company.cover_image"),
+	("Seller Gallery Image", "image", "company.cover_image"),
+	("Seller Gallery Image", "poster_image", "company.cover_image"),
 )
+
+#: Vitrin düzeni bölümlerindeki (JSON) görseller — slayt/bant → kapak slotu.
+_LAYOUT_LOOKUP_SLOT: str = "company.cover_image"
 
 
 def _slot_from_reference(file_url: str | None) -> str | None:
@@ -592,6 +608,14 @@ def _slot_from_reference(file_url: str | None) -> str | None:
 				message=f"{doctype}.{alan} = {file_url}\n\n{frappe.get_traceback()}",
 			)
 			return None
+	try:
+		if frappe.db.get_value("Storefront Layout", {"sections": ["like", f"%{file_url}%"]}, "name"):
+			return _LAYOUT_LOOKUP_SLOT
+	except Exception:
+		frappe.log_error(
+			title="media.pipeline_bridge ilişkiden slot çözülemedi",
+			message=f"Storefront Layout.sections ~ {file_url}\n\n{frappe.get_traceback()}",
+		)
 	return None
 
 
@@ -1936,11 +1960,23 @@ def _format_plan(profil: Any, classification: Any = None) -> tuple[tuple[str, An
 	chain = tuple(getattr(classification, "chain", ()) or ())
 	if not chain:
 		return ()
-	configured = {str(fmt).lower() for fmt in profil.get_formats()}
+	configured = [str(fmt).lower() for fmt in profil.get_formats()]
 	selected = [step for step in chain if str(step.fmt).lower() in configured]
-	if not selected:
-		selected = [chain[0]]
-	return tuple((str(step.fmt).lower(), step.quality_target) for step in selected)
+	if selected:
+		return tuple((str(step.fmt).lower(), step.quality_target) for step in selected)
+	# Profil, sınıflandırıcı zincirinde OLMAYAN bir teslim biçimi istiyor
+	# (2026-09-30: product.image yalnız WebP; zincir yalnız AVIF). Eskiden
+	# burada zincirin ilk adımına (AVIF) düşülüyordu — politika "WebP" dediği
+	# hâlde AVIF üretiliyordu. Teslim biçimine PROFİL karar verir: ortamda
+	# kodlanabilen yapılandırılmış biçimler, profilin kendi kalitesiyle
+	# (`None` → `_render_one` `profil.quality_target`ı kullanır) üretilir.
+	from tradehub_core.media.pipeline.image import classify as classify_mod
+
+	yetenek = classify_mod.encoder_capabilities()
+	kodlanabilir = [fmt for fmt in configured if yetenek.get(fmt.upper(), False)]
+	if kodlanabilir:
+		return tuple((fmt, None) for fmt in kodlanabilir)
+	return ((str(chain[0].fmt).lower(), chain[0].quality_target),)
 
 
 def _missing_lazy_profiles(
@@ -2005,6 +2041,18 @@ def _missing_lazy_profiles(
 	return tuple(dict.fromkeys(eksik))
 
 
+def _slot_has_lazy_profiles(slot_key: str, requested_profiles: Iterable[str] | None = None) -> bool:
+	"""Slotta (istenen adlarla kesişen) etkin `lazy` profil var mı? Tek, ucuz sorgu."""
+	filtre: dict[str, Any] = {"slot_key": slot_key, "enabled": 1, "generation": "lazy"}
+	if requested_profiles is not None:
+		adlar = [str(p) for p in requested_profiles]
+		if not adlar:
+			return False
+		filtre["policy_profile"] = ["in", adlar]
+	# Sistem tablosu (profil reçetesi), kullanıcı verisi değil.
+	return bool(frappe.db.exists("Media Profile", filtre))
+
+
 def ensure_lazy_renditions(
 	asset_name: str,
 	requested_profiles: Iterable[str] | None = None,
@@ -2028,6 +2076,13 @@ def ensure_lazy_renditions(
 		return {"status": "rollout_disabled", "generated": 0}
 	if asset.media_type != _MEDIA_TYPE_IMAGE or asset.state != "ready":
 		return {"status": "not_ready", "generated": 0}
+	if not _slot_has_lazy_profiles(str(asset.slot_key or ""), requested_profiles):
+		# 2026-09-30 (ölçüldü): bu kapı yokken her manifest okuması, lazy profili
+		# HİÇ olmayan slotta bile (product.image: 4 eager WebP) master'ı diskten
+		# okuyup normalize + sınıflandırma yapıyordu — varlık başına ~100 ms,
+		# 40 ilanlık ızgara isteği ~5-9 sn. İstemci 4 sn'de vazgeçtiği için
+		# ızgara kartları hiç `srcset` alamıyordu.
+		return {"status": "no_lazy_profiles", "generated": 0}
 	version_hash = asset.active_version or frappe.db.get_value(
 		"Media Version", {"asset": asset.name, "is_active": 1}, "name"
 	)
@@ -2678,7 +2733,8 @@ def _generate(
 		sonuc.add(GEN_FAILED, "no_supported_format_chain")
 		return sonuc
 	matris_boyutu = sum(len(profil.get_widths()) * len(format_plans[profil.name]) for profil in profiller)
-	# AVIF tek biçim olduğundan aynı büyük matris artık 17 basamaktır.
+	# Tek biçimli büyük matris (eski AVIF merdiveni) 17 basamaktı; hızlı kalite
+	# yolu yalnız o büyüklükte devreye girer.
 	hizli_kalite = matris_boyutu >= 17
 
 	# Kaynak bir kez hazırlanır: eligibility, disk atlama ve bütün formatların
@@ -2747,7 +2803,8 @@ def _generate(
 						str(bicim),
 					)
 	# En küçük basamaktan da küçük kaynak boş kalmasın. Yalnız ilk eager
-	# üretimde, büyütmeden tek AVIF üret; diğer basamaklar omitted kalır.
+	# üretimde, büyütmeden profilin biçiminde tek türev üret; diğer basamaklar
+	# omitted kalır.
 	if generation == "eager" and sonuc.ready == 0 and sonuc.failed == 0 and crop_intent is None:
 		profil = min(profiller, key=lambda p: min(p.get_widths()))
 		native_width = min(kaynak_boyut)
@@ -3140,10 +3197,12 @@ def _render_one(
 			_prepared=prepared,
 			_canvas=canvas_cache[tuval_anahtari],
 			_fast_quality=fast_quality,
-			# Tek teslim biçimi isteniyor: küçük bir kaynakta AVIF daha büyük
-			# olsa da orijinale dönülmez. Tasarruf raporu gerçek baytı gösterir.
-			require_format=bicim == "avif",
-			allow_passthrough=bicim != "avif",
+			# Tek teslim biçimi isteniyor: küçük bir kaynakta AVIF/WebP türevi
+			# daha büyük olsa da orijinale dönülmez ve basamak düşmez (WebP
+			# merdiveni 2026-09-30: tam 4 genişlik sözleşmesi). Tasarruf raporu
+			# gerçek baytı gösterir.
+			require_format=bicim in _TEK_TESLIM_BICIMLERI,
+			allow_passthrough=bicim not in _TEK_TESLIM_BICIMLERI,
 			**({"quality_range": (100, 100)} if quality_target == 100 else {}),
 		)
 	except Exception:
@@ -3179,6 +3238,8 @@ def _render_one(
 		int(sonuc.width or 0),
 		str(sonuc.format or ""),
 	)
+	# Çıktı künyesi (DPI / renk uzayı / alfa) encode edilen baytlardan ölçülür.
+	kunye = _output_facts(sonuc.content)
 	mevcut_ad = frappe.db.get_value("Media Rendition", {"rendition_key": anahtar}, "name")
 	if mevcut_ad:
 		frappe.db.set_value(
@@ -3186,6 +3247,7 @@ def _render_one(
 			mevcut_ad,
 			{
 				**ledger,
+				**kunye,
 				"height": sonuc.height,
 				"file_url": file_url,
 				"bytes": sonuc.size_bytes,
@@ -3227,10 +3289,24 @@ def _render_one(
 			"quality": sonuc.quality if isinstance(sonuc.quality, int) else 0,
 			"ssim": sonuc.ssim or 0.0,
 			"benefit_gate_passed": 1,
+			**kunye,
 		}
 	).insert(ignore_permissions=True)
 	uretilenler.add(matris_anahtari)
 	return GEN_READY
+
+
+def _output_facts(content: bytes) -> dict[str, Any]:
+	"""Türev baytlarının ölçülen künyesi; alanlar henüz yoksa (migrate öncesi) boş."""
+	from tradehub_core.media import image_facts
+
+	try:
+		if not image_facts.rendition_fields_ready():
+			return {}
+		return image_facts.rendition_values_from_bytes(content)
+	except Exception:
+		frappe.log_error(title="media.pipeline_bridge output facts", message=frappe.get_traceback())
+		return {}
 
 
 def _skip_from_disk(

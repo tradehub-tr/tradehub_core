@@ -90,23 +90,26 @@ BAYT_TOLERANSI = 0.15
 libavif sürüm farkı w384'te %14 bayt farkı üretti. ±%15 dışına çıkan sapma bir
 HATA DEĞİL bir HABERDİR: encoder değişmiş, temel çizgi yeniden ölçülmeli."""
 
-#: `product.image` üretim zinciri — konteyner (numpy 2.4.6 · Pillow 12.2.0),
-#: 2026-09-17: w96/w192 AVIF olarak yeniden ölçüldü. (profil, kazanan biçim, genişlik, bayt, kalite, SSIM)
+#: `product.image` üretim zinciri — konteyner (numpy · Pillow 12.2.0).
+#: 2026-09-30 YENİDEN ÖLÇÜLDÜ: merdiven 7 basamak AVIF (SSIM aramalı) → 4 basamak
+#: WebP sabit q80 (`quality.rendition_quality_mode="fixed"`). SSIM artık kapı
+#: değil, ölçüm. (profil, kazanan biçim, genişlik, bayt, kalite, SSIM)
+#: Eski AVIF ölçümü (2026-09-17): w96 3.509 · w192 8.917 · w384 17.138 ·
+#: w640 30.114 · w768 39.689 · w1280 258.309 (q82, 0,960) · w1920 722.296 B;
+#: toplam 1.079.972 B.
 URETIM_ZINCIRI = (
-	("w96", "avif", 96, 3_509, 70, 0.97354),
-	("w192", "avif", 192, 8_917, 70, 0.99107),
-	("w384", "avif", 384, 17_138, 70, 0.99141),
-	("w640", "avif", 640, 30_114, 70, 0.98254),
-	("w768", "avif", 768, 39_689, 70, 0.97467),
-	("w1280", "avif", 1280, 258_309, 82, 0.96036),
-	("w1920", "avif", 1920, 722_296, 82, 0.96262),
+	("w192", "webp", 192, 9_100, 80, 0.97543),
+	("w384", "webp", 384, 20_036, 80, 0.97663),
+	("w768", "webp", 768, 47_218, 80, 0.96425),
+	# 2026-09-30 ikinci karar: w1280 q88 (q80'de 116.556 B, SSIM 0,91969 idi).
+	("w1280", "webp", 1280, 232_342, 88, 0.94773),
 )
-URETIM_TOPLAM_BAYT = 1_079_972
-URETIM_KAYNAGA_ORAN = 1.009
-"""ÖLÇÜM — merdivenin tamamı kaynağın 1,007 KATI. Yani 7 basamaklı `srcset`
-BEDAVA DEĞİLDİR: varlık başına master kadar daha yer ister. Bugünkü tek çıktı
-(engine.to_webp, 303.670 bayt) ile karşılaştırıldığında depolama 3,55 kat artar.
-Bu bir kusur değil, planlanması gereken bir maliyettir."""
+URETIM_TOPLAM_BAYT = 308_696
+URETIM_KAYNAGA_ORAN = 0.288
+"""ÖLÇÜM (2026-09-30) — 4 basamaklı WebP merdiveni kaynağın 0,29 katı (w1280 q88).
+Eski 7 basamaklı AVIF merdiveni 1,009 kat idi. w1280 q80'de 0,18 kat / SSIM 0,920
+ölçülmüştü; ikinci kararla q88: w1280 232.342 B, SSIM 0,948 (foto hedefi 0,96'nın
+hâlâ altında — SSIM bu slotta kapı değil, ölçüm)."""
 
 BUGUNKU_TEK_CIKTI_BAYT = 303_670
 """`tradehub_core/media/pipeline.py::to_webp` — bugün varlık başına üretilen TEK
@@ -114,13 +117,10 @@ BUGUNKU_TEK_CIKTI_BAYT = 303_670
 
 #: 2400×2400 kaynaktan beklenen tuval ölçüleri. Saf aritmetik — TAM eşitlik.
 GEOMETRI_ALTIN = {
-	"w96": (96, 96),
 	"w192": (192, 192),
 	"w384": (384, 384),
-	"w640": (640, 640),
 	"w768": (768, 768),
 	"w1280": (1280, 1280),
-	"w1920": (1920, 1920),
 }
 
 #: Politika matrisi — slot başına tanımlı rendition sayısı (profil × biçim).
@@ -135,6 +135,7 @@ GEOMETRI_ALTIN = {
 #: 2026-08-22: `product.image` güncel politika merdiveni 12 → 19 oldu; toplam
 #: rendition matrisi de 50 → 57. Bu değerler politika dosyalarının bugünkü
 #: tekil üretim sözleşmesini kilitler.
+#: 2026-09-30: `product.image` 7 → 4 (WebP 192/384/768/1280); toplam 41 → 38.
 MATRIS_ALTIN = {
 	"brand.logo": 6,
 	"category.banner": 3,
@@ -142,11 +143,11 @@ MATRIS_ALTIN = {
 	"company.cover_video": 3,
 	"document.attachment": 1,
 	"library.image": 5,
-	"product.image": 7,
+	"product.image": 4,
 	"product.video": 2,
 	"seller.logo": 6,
 	"user.avatar": 3,
-	"_toplam": 41,
+	"_toplam": 38,
 }
 
 
@@ -202,7 +203,17 @@ class FixtureYapisiTesti(unittest.TestCase):
 			self.assertEqual((r.width, r.height), (w, w), f"{ad}: ölçü değişti")
 
 	def test_ssim_hedefin_altina_dusmez(self):
-		"""Kalite kapısı: her basamak politikadaki hedefi TUTMALI."""
+		"""Kalite kapısı: her basamak politikadaki hedefi TUTMALI.
+
+		`fixed` kipte (product.image, 2026-09-30) SSIM kapı DEĞİL: her basamak
+		sabit kaliteyle tek encode edilir ve SSIM yalnız ölçülür.
+		"""
+		if R.rendition_quality_mode(SLOT) == R.QUALITY_MODE_FIXED:
+			for r in self.sonuclar:
+				self.assertEqual(r.encodes, 1, f"{r.name}: sabit kipte tek encode")
+				self.assertEqual(r.quality, r.profile.quality_for(r.format), f"{r.name}: kalite")
+				self.assertGreater(r.ssim, 0.0, f"{r.name}: SSIM ölçülmedi")
+			return
 		for r in self.sonuclar:
 			self.assertGreater(r.ssim_target, 0.0, f"{r.name}: hedef okunamadı")
 			self.assertGreaterEqual(
@@ -244,7 +255,8 @@ class FixtureYapisiTesti(unittest.TestCase):
 		genislikler = [r.width for r in self.sonuclar]
 		self.assertEqual(genislikler, sorted(genislikler), "genişlikler artan değil")
 		self.assertEqual(len(genislikler), len(set(genislikler)), "yinelenen genişlik var")
-		self.assertGreaterEqual(len(genislikler), 5, "srcset için basamak sayısı yetersiz")
+		# 2026-09-30: 4 basamak (192/384/768/1280) kullanıcı kararı; eskiden ≥5.
+		self.assertGreaterEqual(len(genislikler), 4, "srcset için basamak sayısı yetersiz")
 
 	def test_determinizm_ayni_bayt(self):
 		"""Aynı (kaynak, profil, biçim) her zaman AYNI baytları vermeli."""
@@ -303,7 +315,7 @@ class BaytTemelCizgisiTesti(unittest.TestCase):
 		)
 
 	def test_merdiven_kaynak_kadar_yer_kapliyor_OLCUM(self):
-		"""ÖLÇÜM — merdiven BEDAVA DEĞİL: kaynağın ~1,007 katı yer istiyor.
+		"""ÖLÇÜM — 2026-09-30: WebP merdiveni kaynağın ~0,29 katı (w1280 q88; eski AVIF: ~1,007).
 
 		Bu test bir hedef değil, bir GERÇEĞİN kilidi. Erken bir taslakta "toplam
 		kaynaktan küçüktür" diye yazılmıştı ve yerelde geçiyordu; geçmesinin
@@ -312,27 +324,30 @@ class BaytTemelCizgisiTesti(unittest.TestCase):
 		"""
 		toplam = sum(r.size_bytes for r in self.sonuclar)
 		oran = toplam / len(self.kaynak)
-		self.assertAlmostEqual(oran, URETIM_KAYNAGA_ORAN, delta=0.15, msg=f"oran {oran:.3f}")
+		self.assertAlmostEqual(oran, URETIM_KAYNAGA_ORAN, delta=0.05, msg=f"oran {oran:.3f}")
 
 	def test_bugunku_tek_ciktiya_gore_depolama_artisi(self):
-		"""ÖLÇÜM — 7 basamak, bugünkü tek çıktının 3,55 katı yer kaplıyor."""
+		"""ÖLÇÜM — 2026-09-30: 4 WebP basamağı (w1280 q88), eski tek çıktının ~1,02 katı (AVIF: 3,55)."""
 		toplam = sum(r.size_bytes for r in self.sonuclar)
 		kat = toplam / BUGUNKU_TEK_CIKTI_BAYT
-		self.assertGreater(kat, 2.0, "beklenen depolama artışı kaybolmuş — temel çizgiyi doğrula")
-		self.assertLess(kat, 6.0, f"depolama artışı beklenenin çok üstünde: {kat:.2f}×")
+		self.assertGreater(kat, 0.7, "merdiven beklenenden küçük — temel çizgiyi doğrula")
+		self.assertLess(kat, 1.4, f"merdiven beklenenden büyük: {kat:.2f}×")
 
 	def test_en_ust_basamak_merdivenin_cogunu_yiyor(self):
-		"""ÖLÇÜM — w1920 tek başına toplamın %67'si. Optimizasyon önce oraya bakmalı."""
+		"""ÖLÇÜM — en üst basamak (2026-09-30: w1280) toplamın ~%60'ı (eskiden w1920 %67)."""
 		toplam = sum(r.size_bytes for r in self.sonuclar)
-		pay = self.isim["w1920"].size_bytes / toplam
-		self.assertGreater(pay, 0.5, f"w1920 payı {pay:.2%} — dağılım değişmiş")
+		pay = self.isim["w1280"].size_bytes / toplam
+		self.assertGreater(pay, 0.5, f"w1280 payı {pay:.2%} — dağılım değişmiş")
 
 	def test_rapor_karari_ok(self):
 		rapor = REP.build_report(self.kaynak, self.sonuclar, slot_key=SLOT)
 		self.assertEqual(rapor["verdict"], "ok", rapor["summary_tr"])
 		self.assertEqual(rapor["quality"]["below_target"], [])
-		self.assertEqual(rapor["quality"]["backend"], "numpy")
 		self.assertEqual(rapor["quality"]["proxy_measured"], 0)
+		# `fixed` kipte hedef yok → rapor SSIM'i "hedefe karşı ölçülmüş" saymaz;
+		# arka uç kanıtı türev künyesinde (test_ssim_vekil_uzerinde_olculmedi).
+		if R.rendition_quality_mode(SLOT) != R.QUALITY_MODE_FIXED:
+			self.assertEqual(rapor["quality"]["backend"], "numpy")
 
 
 @unittest.skipUnless(FIXTURE.is_file(), "fixture yok")
@@ -359,9 +374,11 @@ class MatrisKilidiTesti(unittest.TestCase):
 		self.assertEqual(R.matrix_size(), MATRIS_ALTIN)
 
 	def test_tum_profiller_yalniz_avif_teslim_eder(self):
+		"""product.image 2026-09-30'dan beri yalnız WebP; diğer slotlar yalnız AVIF."""
 		for slot in R.slot_keys():
+			beklenen = ("webp",) if slot == "product.image" else ("avif",)
 			for profile in R.load_profiles(slot):
-				self.assertEqual(profile.formats, ("avif",), (slot, profile.name))
+				self.assertEqual(profile.formats, beklenen, (slot, profile.name))
 
 	def test_slot_listesi(self):
 		self.assertEqual(set(R.slot_keys()), set(MATRIS_ALTIN) - {"_toplam"})
@@ -370,8 +387,8 @@ class MatrisKilidiTesti(unittest.TestCase):
 		self.assertEqual(MATRIS_ALTIN["_toplam"], sum(v for k, v in MATRIS_ALTIN.items() if k != "_toplam"))
 
 	def test_matris_bugunku_tek_ciktidan_buyuk(self):
-		"""Görevin özü: bugün varlık başına 1 çıktı var, politika 7 AVIF boyutu istiyor."""
-		self.assertEqual(MATRIS_ALTIN["product.image"], 7)
+		"""Görevin özü: varlık başına 1 çıktı yerine politika 4 WebP boyutu istiyor (2026-09-30)."""
+		self.assertEqual(MATRIS_ALTIN["product.image"], 4)
 		self.assertGreater(MATRIS_ALTIN["product.image"], 1)
 
 

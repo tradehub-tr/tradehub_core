@@ -78,17 +78,15 @@
   "max_count": 1
  },
  "master": {
-  "target_ratio": "1:1",
-  "fit": "pad",
-  "pad_color": "transparent",
+  "fit": "contain",
   "allow_crop": false,
   "allow_upscale": false,
-  "max_long_edge": 4096,
+  "max_long_edge": 2000,
   "min_long_edge": 256,
   "max_megapixels": 16.8,
   "dpi_out": 72,
   "format": "webp",
-  "encoding": "lossless",
+  "encoding": "lossy",
   "colorspace": "srgb",
   "orientation": "apply_exif",
   "in_file_safe_area_percent": 0,
@@ -102,125 +100,72 @@
  "quality": {
   "metric": "ssim",
   "lossless_required": false,
-  "target_ssim_per_class": {"photo": 0.99, "graphic": 0.99, "text": 0.99, "fine_detail": 0.99},
-  "reason": "Tek teslim biçimi AVIF. Grafik ve metin için q100 / 4:4:4 başlangıcı kullanılır; kayıpsızlık iddiası yerine SSIM ölçülür.",
-  "reencode_floor_saving_ratio": null
+  "target_ssim_per_class": {
+   "photo": 0.99,
+   "graphic": 0.99,
+   "text": 0.99,
+   "fine_detail": 0.99
+  },
+  "reason": "KARAR 2026-09-30 (mağaza görselleri WebP): tek teslim biçimi WebP q90, sabit kalite (SSIM araması yok). Logo 30–140 px'te basılıyor; alfa WebP'de kayıpsız saklanır.",
+  "reencode_floor_saving_ratio": null,
+  "rendition_quality_mode": "fixed"
  },
  "profiles": [
   {
    "name": "w64",
    "width": 64,
    "height": 64,
-   "formats": ["avif"],
-   "encoder_quality": {"avif": 100},
-   "fit": "pad",
-   "target_ratio": "1:1",
-   "pad_color": "transparent",
-   "max_bytes": 4096,
-   "serves": [
-    "S11 marka sayfası satıcı rozeti @3x",
-    "S8 favoriler satırı @2x",
-    "S4/S6/S6b/S10 @1x-2x",
-    "S2/S5/S9/S12/S13/S16 @1x"
+   "formats": [
+    "webp"
    ],
-   "derived_from": "hesap: max(S11 16px @3x = 48; S8 32px @2x = 64; S5 64px @1x = 64) = 64. Kutular: docs/standards/logo.md §3.1 (brand.ts:138; FavoritesLayout.ts:368-370; product/CompanyProfile.ts:109)",
-   "max_overshoot": 1.33,
-   "byte_reference": "tradehubfront/icons/icon-48.webp 1332 B, icon-72.webp 2021 B (stat -f %z; file → gerçekte PNG) → 64 px ara değer ≈ 1700 B"
+   "encoder_quality": {
+    "webp": 90
+   },
+   "fit": "contain",
+   "serves": [
+    "ürün detay satıcı paneli logo 30px @2x",
+    "vitrin başlığı logo 38px @1x",
+    "favoriler 48px @1x",
+    "ürün detay Tedarikçi kartı 64px @1x"
+   ],
+   "derived_from": "KARAR 2026-09-30 (mağaza görselleri WebP): ölçüm (Playwright 2026-09-30): ürün detay satıcı paneli 30×30, Tedarikçi kartı 64×64, mağaza başlığı 38×38 (masaüstü) / 48×48 (mobil). Oran korunur: 64×64 kutuya SIĞDIRILIR (contain), dolgu yok, alfa korunur.",
+   "max_overshoot": 1.33
   },
   {
    "name": "w128",
    "width": 128,
    "height": 128,
-   "formats": ["avif"],
-   "encoder_quality": {"avif": 100},
-   "fit": "pad",
-   "target_ratio": "1:1",
-   "pad_color": "transparent",
-   "max_bytes": 8192,
-   "serves": [
-    "S8/S10/S4/S6/S6b @3x",
-    "S9/S12/S2/S13/S5/S16 @2x",
-    "S15/S7/S3 @1x"
+   "formats": [
+    "webp"
    ],
-   "derived_from": "hesap: max(S4 40px @3x = 120; S6 42px @3x = 126; S5 64px @2x = 128; S3 120px @1x = 120) = 128. Kutular: docs/standards/logo.md §3.2",
-   "max_overshoot": 1.07,
-   "byte_reference": "tradehubfront/icons/icon-128.webp 3600 B (file → gerçekte PNG 128×128 RGBA)"
+   "encoder_quality": {
+    "webp": 90
+   },
+   "fit": "contain",
+   "serves": [
+    "logo 30–48px @2x–3x",
+    "Tedarikçi kartı 64px @2x"
+   ],
+   "derived_from": "KARAR 2026-09-30 (mağaza görselleri WebP): hesap: max(mağaza başlığı 48px @2x = 96; Tedarikçi kartı 64px @2x = 128) = 128. Kutu 128×128 contain.",
+   "max_overshoot": 1.07
   },
   {
    "name": "w256",
    "width": 256,
    "height": 256,
-   "formats": ["avif"],
-   "encoder_quality": {"avif": 100},
-   "fit": "pad",
-   "target_ratio": "1:1",
-   "pad_color": "transparent",
-   "max_bytes": 16384,
-   "serves": [
-    "S9/S2/S13/S5/S16 @3x",
-    "S15 @2x-3x",
-    "S7/S3 @2x",
-    "S1/S14 @1x"
+   "formats": [
+    "webp"
    ],
-   "derived_from": "hesap: max(S13 56px @3x = 168; S16 64px @3x = 192; S15 80px @3x = 240; S7 116px @2x = 232; S3 120px @2x = 240; S14 160px @1x = 160) = 240 → üst basamak 256. Kutular: docs/standards/logo.md §3.2",
-   "max_overshoot": 1.6,
-   "byte_reference": "tradehubfront/icons/icon-256.webp 9159 B (file → gerçekte PNG 256×256 RGBA)"
-  },
-  {
-   "name": "w384",
-   "width": 384,
-   "height": 384,
-   "formats": ["avif"],
-   "encoder_quality": {"avif": 100},
-   "fit": "pad",
-   "target_ratio": "1:1",
-   "pad_color": "transparent",
-   "max_bytes": 23040,
+   "encoder_quality": {
+    "webp": 90
+   },
+   "fit": "contain",
    "serves": [
-    "S1 @2x (280 kutu)",
-    "348 ve 360 px talepleri"
+    "üretici kartı 116px @2x",
+    "mağaza sayfası 120–140px @1x–2x"
    ],
-   "derived_from": "K3 kararı (logo.md §13-K3) ÖLÇÜMLE B'ye çevrildi, 2026-08-19. Tetik: 512 rung'unun gerçek baytı 40 KiB tavanına yaklaşırsa 5 rung. Ölçüm (18 gerçek logo, kayıpsız WebP): p50 27.162 B ≈ referans 27.128 B, p90 83.522 B, max 109.172 B; 9/18 referanstan ağır, 5/18 tavanı AŞIYOR. Tetik ateşledi. Bu rung en kötü aşırı-servisi 1,83× → 1,37× indirir.",
-   "max_overshoot": 1.37
-  },
-  {
-   "name": "w512",
-   "width": 512,
-   "height": 512,
-   "formats": ["avif"],
-   "encoder_quality": {"avif": 100},
-   "fit": "pad",
-   "target_ratio": "1:1",
-   "pad_color": "transparent",
-   "max_bytes": 40960,
-   "serves": [
-    "S7/S3 @3x",
-    "S1 @2x-3x",
-    "S14 @2x-3x"
-   ],
-   "derived_from": "hesap: max(S1 140px @3x = 420; S14 160px @3x = 480) = 480 → üst basamak 512. Kutular: docs/standards/logo.md §3.2 (seller-shop.ts:124-129; ProfileImageDropzone.vue:135)",
-   "max_overshoot": 1.83,
-   "max_overshoot_note": "En kötü durum S1 @2x (280 → 512 = 1,83× doğrusal / 3,35× piksel). K3 KAPANDI (2026-08-19, seçenek B): w384 rung'u eklendi ve bu değeri 1,37×'e indirdi — docs/standards/logo.md §13-K3.",
-   "byte_reference": "tradehubfront/public/icons/icon-512.png 27128 B (stat -f %z; file → PNG 512×512 RGBA kayıpsız)"
-  },
-  {
-   "name": "og1200x630",
-   "width": 1200,
-   "height": 630,
-   "formats": ["avif"],
-   "encoder_quality": {"avif": 88},
-   "fit": "pad",
-   "target_ratio": "1200:630",
-   "pad_color": "#FFFFFF",
-   "max_bytes": 122880,
-   "max_content_height": 453,
-   "serves": [
-    "og:image",
-    "twitter:image"
-   ],
-   "derived_from": "seo/og_image.py:20-21 OG_WIDTH=1200, OG_HEIGHT=630. Bağlanma: seo/meta_builder.py:261 og_image_resolver=lambda r: ensure_og_image(r, source_field='logo'). max_content_height = 630 × 0,72 = 453,6 → 453 (%14 üst + %14 alt güvenli alan).",
-   "fixes": "seo/og_image.py:45-49 bugün COVER-CROP yapıyor: 1:1 logo için new_h=1200, top=(1200−630)//2=285, crop(0,285,1200,915) → logonun yüksekliğinin %47,5'i (570/1200) kesiliyor. Ayrıca :34 img.convert('RGB') alfayı belirsiz zemine düşürüyor, :51 JPEG q85 kayıplı. Bu profil üçünü de düzeltir: pad (crop değil) + açıkça beyaz zemin.",
-   "byte_reference": "tradehubfront/public/images/og-default.jpg 47649 B (file → JPEG 1200×630)"
+   "derived_from": "KARAR 2026-09-30 (mağaza görselleri WebP): hesap: max(üretici hero 116px @2x = 232; mağaza profil 120px @2x = 240) → 256. 140px @2x = 280 bu basamakla karşılanır (%9 eksik, bilinçli). Kutu 256×256 contain.",
+   "max_overshoot": 1.6
   }
  ],
  "content_rules": [

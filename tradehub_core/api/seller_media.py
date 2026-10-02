@@ -376,11 +376,17 @@ def get_my_media_history(file_url: str) -> dict:
 	job_total = 0
 	if asset_names:
 		asset_filter = {"asset": ["in", asset_names]}
-		version_total = frappe.db.count("Media Version", asset_filter)
+		# Emekli (`archived`) varlık dosyanın ESKİ içeriğini anlatır — ör. kare
+		# dönüşümünden önceki 2400×1992 sürümü. Güncel varlık varsa sürüm
+		# listesi (boyut/DPI) yalnız onlardan gelir; hepsi arşivliyse geçmiş
+		# boş kalmasın diye tümü gösterilir.
+		guncel = [row["name"] for row in assets if row.get("state") != "archived"]
+		version_filter = {"asset": ["in", guncel or asset_names]}
+		version_total = frappe.db.count("Media Version", version_filter)
 		job_total = frappe.db.count("Media Processing Job", asset_filter)
 		versions = frappe.get_all(
 			"Media Version",
-			filters=asset_filter,
+			filters=version_filter,
 			fields=[
 				"name",
 				"asset",

@@ -76,10 +76,10 @@ from werkzeug.wrappers import Response
 
 from tradehub_core.api import media_access
 from tradehub_core.api.rate_limit import rate_limit
-from tradehub_core.media import pipeline_flags, seo_cikti, seo_url
+from tradehub_core.media import image_facts, pipeline_flags, seo_cikti, seo_url
 from tradehub_core.media.pipeline.api import delivery as pipeline_delivery
 from tradehub_core.media.pipeline.api import envelope as env
-from tradehub_core.media.pipeline.contracts.delivery import RenderManifest
+from tradehub_core.media.pipeline.contracts.delivery import RenderManifest, Variant, derivative_key
 from tradehub_core.media.pipeline.contracts.errors import NoProfileAvailable
 from tradehub_core.media.pipeline.contracts.storage import (
 	SCOPE_PRIVATE,
@@ -377,7 +377,13 @@ def manifest_batch(file_urls: list | str | None = None) -> dict:
 
 	    Manifest: `{"file": docname, "file_url": adres, "assets": [ad, ...],
 	    "renditions": [{name, asset, profile, width, height, format, file_url,
-	    bytes, ssim, generation, benefit_gate_passed}, ...]}`
+	    bytes, ssim, generation, benefit_gate_passed, output_dpi,
+	    output_colorspace, output_has_alpha}, ...],
+	    "source": {status, dpi, colorspace, has_alpha} | None}`
+
+	    `source` kaynak DOSYADAN ölçülür (`media/image_facts.py`): `dpi` 0 =
+	    dosyada DPI kaydı yok; `status` `unreadable`/`missing` ise değerler
+	    `None`. Görsel olmayan dosyada `source` `None`.
 
 	    **Erişilemeyen adres `None` döner, hata DEĞİL** — "yok", "silinmiş" ve
 	    "başka satıcının özel dosyası" üçü de aynı `None`dır; ayrıştırmak bir
@@ -446,6 +452,11 @@ def manifest_batch(file_urls: list | str | None = None) -> dict:
 	# T-061/062/065: panel kalite/detay yüzeyleri sürüm zenginleştirmesini
 	# `manifest.version` anahtarından okur (rapor 73 §3.3). Tek sorgu, N+1 yok.
 	zengin = version_enrichment_for_assets(sorted({v["name"] for grup in varliklar.values() for v in grup}))
+	# Kaynak dosyanın ÖLÇÜLEN künyesi (DPI / renk uzayı / alfa). `version`
+	# içindeki dpi/colorspace normalize KARARIDIR, dosyanın kendisi değil —
+	# Kalite sekmesinin "Kaynak" sütunu bunu okur. Varlığı olmayan (boru
+	# hattından geçmemiş) dosyada da dolar.
+	kaynak_kunye = image_facts.source_facts_for(list(cozulen.values()))
 
 	for adres, dosya in cozulen.items():
 		secili = varliklar.get(_dosya_anahtari(dosya)) or []
@@ -458,6 +469,7 @@ def manifest_batch(file_urls: list | str | None = None) -> dict:
 			"renditions": satirlar[:FILE_BATCH_RENDITIONS_PER_FILE],
 			# İlk zenginleştirilmiş sürüm — varlık seçim sırası `secili` ile aynı.
 			"version": next((zengin[v["name"]] for v in secili if v["name"] in zengin), None),
+			"source": kaynak_kunye.get(dosya["name"]),
 		}
 
 	govde["returned"] = sum(1 for m in govde["manifests"].values() if m is not None)
@@ -561,15 +573,19 @@ def _dosya_varliklari(kopru: Mapping[str, Sequence[str]]) -> dict[str, list[dict
 	for satir in frappe.get_list(
 		"Media Asset",
 		filters={"source_file": ["in", sorted(anahtar_of)]},
-		fields=["name", "source_file", "active_version"],
+		fields=["name", "source_file", "active_version", "state"],
 		order_by="creation desc",
 		limit_page_length=0,
 	):
 		for anahtar in anahtar_of.get(satir["source_file"], ()):
-			grup = cikti.setdefault(anahtar, [])
-			if len(grup) < FILE_BATCH_ASSETS_PER_FILE:
-				grup.append(satir)
-	return cikti
+			cikti.setdefault(anahtar, []).append(satir)
+	# Emekli (`archived`) varlık dosyanın ESKİ içeriğini anlatır (ör. kare
+	# dönüşümünden önceki kare olmayan türevler). Hiç sunulmaz: yeni varlık
+	# henüz yoksa istemci ana dosyaya düşer, eski oranlı türev göstermez.
+	return {
+		anahtar: [v for v in grup if v.get("state") != "archived"][:FILE_BATCH_ASSETS_PER_FILE]
+		for anahtar, grup in cikti.items()
+	}
 
 
 def _varlik_turevleri(
@@ -612,6 +628,8 @@ def _varlik_turevleri(
 			"ssim",
 			"generation",
 			"benefit_gate_passed",
+			# Çıktı dosyasından ölçülen künye (Kalite sekmesi "Sonuç" sütunu).
+			*(image_facts.RENDITION_FIELDS if image_facts.rendition_fields_ready() else ()),
 		],
 		order_by="width asc",
 		limit_page_length=0,
@@ -682,27 +700,59 @@ class _CiftSuzgecliBuilder(manifest_mod.ManifestBuilder):
 	actual_sizes: Mapping[tuple[str, str], tuple[int, int]] | None = None
 
 	def build_image(self, slot_key: str, base: ObjectRef, **kwargs: Any) -> RenderManifest:
+		# Üst sınıfın profil-adı süzgeci devre dışı: süzgeci aşağıda (profil,
+		# biçim) çiftiyle kendimiz uyguluyoruz. Süzgeç açık kalsaydı, yalnız
+		# ESKİ merdivenin profilleri (ör. w96/w1920) üretilmiş bir varlıkta üst
+		# sınıf `NoProfileAvailable` fırlatır ve eski türevler hiç sunulmazdı.
+		kwargs["available_profiles"] = None
 		man = super().build_image(slot_key, base, **kwargs)
-		varyantlar = tuple(
+		olculer = self.actual_sizes or {}
+		varyantlar = [
 			replace(
 				v,
 				available=(v.profile, v.fmt.lower()) in self.servis_edilir,
-				width=(self.actual_sizes or {}).get((v.profile, v.fmt.lower()), (v.width, v.height))[0],
-				height=(self.actual_sizes or {}).get((v.profile, v.fmt.lower()), (v.width, v.height))[1],
+				width=olculer.get((v.profile, v.fmt.lower()), (v.width, v.height))[0],
+				height=olculer.get((v.profile, v.fmt.lower()), (v.width, v.height))[1],
 			)
 			for v in man.variants
-		)
+		]
+		# Geçiş uyumluluğu (2026-09-30 WebP merdiveni): politikada ARTIK
+		# olmayan ama bu varlığın aktif sürümünde üretilmiş (profil, biçim)
+		# çiftleri — ör. eski AVIF merdiveni — yeniden üretim bitene kadar
+		# sunulmaya devam eder. Adres `url_for` ile DB'deki gerçek dosyadan
+		# gelir; biçim sırasını (AVIF > WebP) `_sources` belirler.
+		politikada = {(v.profile, v.fmt.lower()) for v in man.variants}
+		for profil, bicim in sorted(self.servis_edilir - politikada):
+			genislik, yukseklik = olculer.get((profil, bicim), (0, 0))
+			if genislik <= 0:
+				continue
+			ref = ObjectRef(key=derivative_key(base.key, profil, bicim), scope=base.scope)
+			varyantlar.append(
+				Variant(
+					profile=profil,
+					url=self.url_for(ref),
+					width=int(genislik),
+					fmt=bicim,
+					height=int(yukseklik),
+					available=True,
+				)
+			)
+		varyantlar = tuple(varyantlar)
 		uretilmis = [v for v in varyantlar if v.available]
 		if not uretilmis:
 			raise NoProfileAvailable(
 				f"`{slot_key}` için servis edilebilir hiçbir türev yok.",
 				detay={"slot_key": slot_key},
 			)
+		ekstra = dict(man.extra)
+		ekstra["available_profiles"] = sorted({v.profile for v in uretilmis})
+		ekstra["missing_profiles"] = sorted({v.profile for v in varyantlar if not v.available})
 		return replace(
 			man,
 			variants=varyantlar,
 			sources=self._sources(uretilmis, man.sizes),
 			fallback_url=self._fallback_url(uretilmis),
+			extra=ekstra,
 		)
 
 
@@ -855,7 +905,7 @@ def _tek_ilan_govdesi(
 		man = _render_manifest(
 			slot_key,
 			ham_url,
-			servis_edilir,
+			servis_edilir + _master_adayi(slot_key, ham_url, varlik, servis_edilir),
 			alt=kayit["alt_text"],
 			is_lcp=(sira == 0),
 			version_meta=(zengin or {}).get(varlik["name"]),
@@ -889,6 +939,49 @@ def _tek_ilan_govdesi(
 	if ilk:
 		govde["fallback"] = ilk["manifest"].get("src") or govde["fallback"]
 	return govde
+
+
+#: Master'ın `srcset` adayı olabileceği slotlar ve üst sınır (2026-09-30).
+MASTER_ADAY_SLOTLARI: frozenset[str] = frozenset({"product.image"})
+MASTER_ADAY_AZAMI: int = 2000
+MASTER_PROFILI: str = "master"
+
+
+def _master_adayi(
+	slot_key: str,
+	ham_url: str,
+	varlik: Mapping[str, Any],
+	servis_edilir: Sequence[Mapping[str, Any]],
+) -> list[dict[str, Any]]:
+	"""Kare WebP master'ı merdivenin en büyük `srcset` adayı olarak ekle.
+
+	2026-09-30 kullanıcı kararı: türev merdiveni 1280'de bitiyor; yüksek DPR'li
+	telefon/tablet/dizüstü ürün detay ana görselinde 1280'in üstünü istiyor.
+	Master zaten ≤2000 px kare WebP (media/kare.py) — yeni dosya üretmeden
+	gerçek genişliği `S` ile aday olur. Koşullar: slot ürün görseli, master
+	WebP, kare, 2000'i aşmıyor ve en büyük türevden BÜYÜK (yoksa gereksiz).
+	Ölçü `Media Version`'dan (aktif sürümün normalize master'ı) okunur.
+	"""
+	if slot_key not in MASTER_ADAY_SLOTLARI or not str(ham_url).lower().endswith(".webp"):
+		return []
+	genislik = int(varlik.get("master_width") or 0)
+	yukseklik = int(varlik.get("master_height") or 0)
+	if genislik <= 0 or genislik != yukseklik or genislik > MASTER_ADAY_AZAMI:
+		return []
+	en_buyuk = max((int(t.get("width") or 0) for t in servis_edilir), default=0)
+	if genislik <= en_buyuk:
+		return []
+	return [
+		{
+			"profile": MASTER_PROFILI,
+			"format": "webp",
+			"width": genislik,
+			"height": yukseklik,
+			"file_url": ham_url,
+			"bytes": 0,
+			"benefit_gate_passed": 1,
+		}
+	]
 
 
 # ── W7: video manifesti ─────────────────────────────────────────────────
@@ -1271,6 +1364,167 @@ def _varlik_sec(adaylar: dict[str, Any], seller_profile: str) -> dict[str, Any] 
 	return adaylar.get("") or None
 
 
+# ── Mağaza görselleri (logo / kapak / vitrin / galeri) ─────────────────
+
+#: Mağaza görsellerinin teslim biçimi (2026-09-30 kararı: yalnız WebP).
+MAGAZA_BICIMI: str = "image/webp"
+
+
+def magaza_gorsel_medyasi(
+	ogeler: Iterable[tuple[str, str, str]],
+) -> dict[tuple[str, str], dict[str, Any]]:
+	"""`(url, slot, satıcı)` → `{src, srcset, width, height[, focal]}` — vitrinin `srcset`i + odağı.
+
+	Anahtar `(url, slot)`tır (satıcısız): aynı anahtara BİRDEN ÇOK satıcı
+	düşüyorsa odak hiçbirine yazılmaz (ortak gövdeye bir satıcının odağını
+	basmak başkasına sızdırır). Çok satıcılı çağrılar `magaza_gorsel_medyasi_saticili`
+	kullanmalı. Türev kısmı `_magaza_turev_govdeleri`dir (bayrak kapalıysa boş).
+	Odak (2026-10-01) bayraktan BAĞIMSIZ eklenir: odak kaydı olup türevi olmayan
+	görsel `srcset: ""` gövdesi alır. Asla hata fırlatmaz.
+	"""
+	ogeler = list(ogeler)
+	cikti = _magaza_turev_govdeleri(ogeler)
+	saticilar: dict[tuple[str, str], set[str]] = {}
+	for u, sl, st in ogeler:
+		saticilar.setdefault((u, sl), set()).add(st or "")
+	tek = [(u, sl, st) for u, sl, st in ogeler if len(saticilar[(u, sl)]) == 1]
+	for (url, slot, _satici), govde in _odakli_govdeler(cikti, tek).items():
+		cikti[(url, slot)] = govde
+	return cikti
+
+
+def magaza_gorsel_medyasi_saticili(
+	ogeler: Iterable[tuple[str, str, str]],
+) -> dict[tuple[str, str, str], dict[str, Any]]:
+	"""`(url, slot, satıcı)` → gövde — odak satıcı bazında, gövde kopyası her satıcıya ayrı."""
+	ogeler = list(ogeler)
+	return _odakli_govdeler(_magaza_turev_govdeleri(ogeler), ogeler)
+
+
+def _odakli_govdeler(
+	turevler: dict[tuple[str, str], dict[str, Any]], ogeler: list[tuple[str, str, str]]
+) -> dict[tuple[str, str, str], dict[str, Any]]:
+	"""Her `(url, slot, satıcı)` için türev gövdesinin kopyası (+ o satıcının odağı)."""
+	cikti: dict[tuple[str, str, str], dict[str, Any]] = {}
+	odaklar = _odaklari_oku(ogeler)
+	for url, slot, satici in ogeler:
+		satici = satici or ""
+		govde = turevler.get((url, slot))
+		deger = odaklar.get((url, satici)) if _yerel_url(url).startswith("/files/") else None
+		if govde is not None:
+			govde = {**govde}  # her satıcıya ayrı kopya: ortak dict'e yazma/son-yazan-kazanır yok
+		if deger:
+			govde = govde or {"src": url, "srcset": "", "width": 0, "height": 0}
+			govde["focal"] = dict(deger)
+		if govde is not None:
+			cikti[(url, slot, satici)] = govde
+	return cikti
+
+
+def _odaklari_oku(ogeler: list[tuple[str, str, str]]) -> dict[tuple[str, str], dict[str, float]]:
+	"""`odak.odaklar` — yalnız herkese açık `/files/`; satıcı kayıttan gelir, istekten asla."""
+	try:
+		from tradehub_core.media import odak as odak_mod
+
+		istekler = {(u, st or "") for u, sl, st in ogeler if u and sl and _yerel_url(u).startswith("/files/")}
+		return odak_mod.odaklar(sorted(istekler))
+	except Exception:
+		# Odak vitrini düşürecek kadar kritik değil: türev gövdeleri dokunulmadan
+		# döner, hata Error Log'a düşer.
+		frappe.log_error(title="media manifest mağaza odağı", message=frappe.get_traceback())
+		return {}
+
+
+def _magaza_turev_govdeleri(
+	ogeler: Iterable[tuple[str, str, str]],
+) -> dict[tuple[str, str], dict[str, Any]]:
+	"""Türev gövdeleri — `magaza_gorsel_medyasi`nin bayrağa bağlı yarısı.
+
+	Mağaza görselleri ilana bağlı değil; ilan bazlı uçlar (`get_manifest_batch`)
+	onları göremez. Bu yardımcı satıcı yanıtlarına (`get_seller`, ürün detayı
+	tedarikçi kartı, vitrin düzeni…) gömülecek küçük gövdeyi üretir. `sizes`
+	BİLEREK yok: aynı logo 30 px de 140 px de basılıyor, `sizes` basıldığı yerin
+	(vitrin bileşeninin) bilgisidir.
+
+	Yalnız WebP kaynak döner; türev yoksa ya da bayrak kapalıysa anahtar HİÇ
+	yazılmaz ve çağıran ham adrese düşer. Asla hata fırlatmaz.
+	"""
+	cikti: dict[tuple[str, str], dict[str, Any]] = {}
+	try:
+		if not _bayrak_acik():
+			return cikti
+		slota_gore: dict[str, set[str]] = {}
+		# Yalnız herkese açık `/files/` — özel dosyanın türevi vitrine gömülmez.
+		istekler = [
+			(u, sl, st or "") for u, sl, st in ogeler if u and sl and _yerel_url(u).startswith("/files/")
+		]
+		for url, slot, _satici in istekler:
+			slota_gore.setdefault(slot, set()).add(url)
+		varliklar: dict[str, dict[str, dict[str, Any]]] = {
+			slot: _varliklari_getir(sorted(urls), slot) for slot, urls in slota_gore.items()
+		}
+		secilen: dict[tuple[str, str, str], dict[str, Any]] = {}
+		for url, slot, satici in istekler:
+			adaylar = varliklar.get(slot, {}).get(url) or {}
+			# Mağaza görseli herkese açık bir mağaza varlığı: satıcının kendi
+			# varlığı yoksa (dosyayı başka hesap yüklemiş) ilk hazır varlık kullanılır.
+			varlik = _varlik_sec(adaylar, satici) or next(iter(adaylar.values()), None)
+			if varlik:
+				secilen[(url, slot, satici)] = varlik
+		turevler = _turevleri_getir(
+			[v["name"] for v in secilen.values()],
+			{v["name"]: str(v.get("active_version") or "") for v in secilen.values()},
+		)
+		for (url, slot, _satici), varlik in secilen.items():
+			govde = _magaza_govdesi(url, slot, turevler.get(varlik["name"]) or [])
+			if govde:
+				cikti[(url, slot)] = govde
+	except Exception:
+		frappe.log_error(title="media manifest mağaza görseli", message=frappe.get_traceback())
+	return cikti
+
+
+def _magaza_govdesi(url: str, slot: str, turevler: list[dict[str, Any]]) -> dict[str, Any] | None:
+	servis_edilir, _elenen = _servis_edilebilir(turevler)
+	servis_edilir = [t for t in servis_edilir if str(t.get("format") or "").lower() == "webp"]
+	if not servis_edilir:
+		return None
+	man = _render_manifest(slot, url, servis_edilir, alt="", is_lcp=False)
+	if not man:
+		return None
+	kaynak = next((k for k in man.get("sources") or () if k.get("type") == MAGAZA_BICIMI), None)
+	if not kaynak or not kaynak.get("srcset"):
+		return None
+	return {
+		"src": man.get("src") or url,
+		"srcset": kaynak["srcset"],
+		"width": int(man.get("width") or 0),
+		"height": int(man.get("height") or 0),
+	}
+
+
+def magaza_medyasi_ekle(
+	kayitlar: Iterable[dict[str, Any]], alanlar: Mapping[str, str], satici_alani: str
+) -> None:
+	"""Her kayda `<alan>_media` yaz: `alanlar` = `{alan: slot}`; satıcı `kayit[satici_alani]`.
+
+	Tek toplu sorgu turu; türevi olmayan alan için anahtar `None` yazılır ki
+	vitrin "bilinmiyor" ile "yok"u ayırmak zorunda kalmasın.
+	"""
+	kayitlar = [k for k in kayitlar if isinstance(k, dict)]
+	ogeler = [
+		(k.get(alan), slot, str(k.get(satici_alani) or ""))
+		for k in kayitlar
+		for alan, slot in alanlar.items()
+		if k.get(alan)
+	]
+	medya = magaza_gorsel_medyasi_saticili(ogeler)
+	for k in kayitlar:
+		satici = str(k.get(satici_alani) or "")
+		for alan, slot in alanlar.items():
+			k[f"{alan}_media"] = medya.get((k.get(alan), slot, satici)) if k.get(alan) else None
+
+
 # ── DB okumaları — her biri TEK sorgu ───────────────────────────────────
 
 
@@ -1376,9 +1630,11 @@ def _varliklari_getir(file_urls: Sequence[str], slot_key: str) -> dict[str, dict
 	# uygulanıyor; `get_list` guest bağlamında hiçbir şey döndürmez.
 	satirlar = frappe.db.sql(
 		"""
-		SELECT ma.name, ma.owner_seller, ma.slot_key, ma.state, ma.active_version, f.file_url
+		SELECT ma.name, ma.owner_seller, ma.slot_key, ma.state, ma.active_version, f.file_url,
+		       mv.width AS master_width, mv.height AS master_height
 		FROM `tabMedia Asset` ma
 		INNER JOIN `tabFile` f ON f.name = ma.source_file
+		LEFT JOIN `tabMedia Version` mv ON mv.name = ma.active_version
 		WHERE ma.slot_key = %(slot)s
 		  AND ma.state = %(state)s
 		  AND f.file_url IN %(urls)s

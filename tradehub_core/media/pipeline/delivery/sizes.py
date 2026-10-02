@@ -47,9 +47,12 @@ seçimini değiştirmiyor.
 
 from __future__ import annotations
 
+import hashlib
 import math
 import re
+import sys
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from tradehub_core.media.pipeline.simulator import srcset as sim
@@ -582,8 +585,198 @@ def required_px(region_key: str, viewport: int, dpr: float, *, layout: Optional[
 	return math.ceil(resolve(dizge, viewport) * float(dpr))
 
 
+TS_BLOK_BASI = "// <üretilmiş:media-sizes> — ELLE DÜZENLEME; `--emit-ts` çıktısı"
+TS_BLOK_SONU = "// </üretilmiş:media-sizes>"
+
+
+def emit_ts(layout: Optional[sim.Layout] = None) -> str:
+	"""Storefront `src/lib/media/sizes.ts` için üretilmiş blok (bölge birliği + tablo).
+
+	2026-09-30: storefront kopyası 2026-08-18'den beri elle kopyalanıyordu ve
+	T-115 düzeltmelerini (kart kenarlığı 2px × sütun, 480px listeleme adımı)
+	HİÇ almamıştı. Blok işaretçiler arasında makineyle değiştirilir:
+
+	    python -m tradehub_core.media.pipeline.delivery.sizes --emit-ts > blok.ts
+	"""
+	yerlesim = layout or _layout()
+	anahtarlar = sorted(region_keys(yerlesim))
+	satirlar = [TS_BLOK_BASI, "", "/** `placements.json`'daki `sayfa/bölge` anahtarları. */"]
+	satirlar.append("export type MediaSizesRegion =")
+	satirlar += [f'  | "{k}"' + (";" if i == len(anahtarlar) - 1 else "") for i, k in enumerate(anahtarlar)]
+	satirlar += [
+		"",
+		"/** Bölge → `sizes` özniteliği (`placements.json` + `srcset.py`'den türetilir). */",
+		"export const MEDIA_SIZES: Readonly<Record<MediaSizesRegion, string>> = {",
+	]
+	satirlar += [f'  "{k}": "{sizes_for(k, yerlesim)}",' for k in anahtarlar]
+	satirlar += ["};", "", TS_BLOK_SONU]
+	return "\n".join(satirlar) + "\n"
+
+
+# ── Önizleme yerleri (2026-10-01) ───────────────────────────────────────
+
+PREVIEW_SLOTS: Tuple[str, ...] = ("company.cover_image", "seller.logo", "product.image")
+PREVIEW_DEVICES: Tuple[str, ...] = ("desktop", "mobile")
+PREVIEW_FITS: Tuple[str, ...] = ("cover", "contain")
+PREVIEW_CONTEXTS: Tuple[str, ...] = (
+	"StoreHeaderContext",
+	"StoreCardContext",
+	"StoreVitrinContext",
+	"GalleryContext",
+	"ProductCardContext",
+	"ProductPageContext",
+	"CartContext",
+	"RelatedContext",
+	"FavoritesContext",
+)
+
+
+def _placements_sha256() -> str:
+	from tradehub_core.media.pipeline.simulator import PLACEMENTS_PATH
+
+	return hashlib.sha256(Path(PLACEMENTS_PATH).read_bytes()).hexdigest()
+
+
+def _onizleme_yeri(
+	yer: Dict[str, Any], yerlesim: sim.Layout, cihazlar: Dict[str, Any], referans: Dict[str, str]
+) -> Dict[str, Any]:
+	cihaz_turu = yer.get("device")
+	if cihaz_turu not in PREVIEW_DEVICES:
+		raise SizesError(f"Önizleme yeri cihazı geçersiz: {yer.get('key')!r} → {cihaz_turu!r}")
+	if yer.get("fit") not in PREVIEW_FITS:
+		raise SizesError(f"Önizleme yeri `fit` geçersiz: {yer.get('key')!r}")
+	if yer.get("context") not in PREVIEW_CONTEXTS:
+		raise SizesError(f"Önizleme yeri bağlamı bilinmiyor: {yer.get('context')!r}")
+	en, boy = (float(v) for v in yer["ratio"])
+	if en <= 0 or boy <= 0:
+		raise SizesError(f"Önizleme yeri oranı pozitif olmalı: {yer.get('key')!r}")
+	oran = en / boy
+	boyut = yer.get("css_size")
+	kaynak = str(yer.get("derived_from") or "")
+	if yer.get("region"):
+		sayfa, _, bolge = str(yer["region"]).partition("/")
+		bolge_kaydi = yerlesim.region_of(sayfa, bolge)
+		cihaz = cihazlar[referans[cihaz_turu]]
+		genislik = round(sim.box_width(bolge_kaydi, cihaz, yerlesim))
+		boyut = [genislik, round(genislik / oran)]
+		kaynak = kaynak or f"{bolge_kaydi.key} — {bolge_kaydi.render_point}"
+	return {
+		"key": str(yer["key"]),
+		"device": cihaz_turu,
+		"label": str(yer["label"]),
+		"labelKey": str(yer["label_i18n"]),
+		"ratio": round(oran, 6),
+		"ratioLabel": str(yer["ratio_label"]),
+		"cssW": int(boyut[0]) if boyut else None,
+		"cssH": int(boyut[1]) if boyut else None,
+		"fit": yer["fit"],
+		"context": yer["context"],
+		"sizesKey": yer.get("storefront_sizes_key") or None,
+		"sizes": yer.get("sizes") or None,
+		"derivedFrom": kaynak,
+	}
+
+
+def preview_places(layout: Optional[sim.Layout] = None) -> Dict[str, List[Dict[str, Any]]]:
+	"""`placements.json → preview_places` çözülmüş hâli: slot → yer listesi.
+
+	`region` taşıyan yerin ölçüsü `box_width` ile referans cihazda HESAPLANIR —
+	elle yazılmış ikinci bir sayı doğmasın. `css_size: null` ölçülmedi demektir.
+	"""
+	yerlesim = layout or _layout()
+	blok = yerlesim.raw.get("preview_places") or {}
+	cihazlar = {d.id: d for d in sim.load_devices()}
+	referans = dict(blok.get("reference_devices") or {})
+	cikti: Dict[str, List[Dict[str, Any]]] = {}
+	for slot, yerler in (blok.get("slots") or {}).items():
+		if slot not in PREVIEW_SLOTS:
+			raise SizesError(f"Bilinmeyen önizleme slotu: {slot!r}")
+		gorulen: set = set()
+		satirlar: List[Dict[str, Any]] = []
+		for yer in yerler:
+			satir = _onizleme_yeri(yer, yerlesim, cihazlar, referans)
+			kimlik = (satir["key"], satir["device"])
+			if kimlik in gorulen:
+				raise SizesError(f"{slot}: yinelenen önizleme yeri {kimlik!r}")
+			gorulen.add(kimlik)
+			satirlar.append(satir)
+		cikti[slot] = satirlar
+	return cikti
+
+
+def emit_placements_admin(layout: Optional[sim.Layout] = None) -> str:
+	"""Admin `src/lib/media/vendor/placements.js` — dosyanın TAMAMI."""
+	import json
+
+	yerlesim = layout or _layout()
+	blok = yerlesim.raw.get("preview_places") or {}
+	sahne = blok.get("stage") or {}
+	stage = {
+		"desktopPagePx": int(sahne.get("desktop_page_px") or 1200),
+		"desktopStagePx": int(sahne.get("desktop_stage_px") or 780),
+		"mobilePagePx": int(sahne.get("mobile_page_px") or 390),
+	}
+	esik = float(blok.get("fully_visible_min") or 0.98)
+	satirlar = [
+		"// ÜRETİLMİŞ DOSYA — ELLE DÜZENLEME.",
+		"// Kaynak: tradehub_core/tradehub_core/media/pipeline/simulator/placements.json (preview_places)",
+		"// Üretici (tradehub_core kökünde): python3 -m tradehub_core.media.pipeline.delivery.sizes"
+		" --emit-placements admin > ../admin-panel/frontend/src/lib/media/vendor/placements.js",
+		f'export const SOURCE_SHA256 = "{_placements_sha256()}";',
+		f"export const STAGE = Object.freeze({json.dumps(stage, ensure_ascii=False)});",
+		f"export const FULLY_VISIBLE_MIN = {esik};",
+		"export const PLACES = Object.freeze("
+		+ json.dumps(preview_places(yerlesim), ensure_ascii=False, indent=2)
+		+ ");",
+	]
+	return "\n".join(satirlar) + "\n"
+
+
+def emit_placements_storefront(layout: Optional[sim.Layout] = None) -> str:
+	"""Storefront `src/lib/media/placements.gen.ts` — dosyanın TAMAMI."""
+	boyutlar: Dict[str, str] = {}
+	for yerler in preview_places(layout).values():
+		for y in yerler:
+			if not y["sizesKey"]:
+				continue
+			onceki = boyutlar.get(y["sizesKey"])
+			if onceki is not None and onceki != y["sizes"]:
+				raise SizesError(f"`{y['sizesKey']}` iki farklı `sizes` taşıyor: {onceki!r} / {y['sizes']!r}")
+			boyutlar[y["sizesKey"]] = y["sizes"]
+	satirlar = [
+		"// ÜRETİLMİŞ DOSYA — ELLE DÜZENLEME.",
+		"// Kaynak: tradehub_core/tradehub_core/media/pipeline/simulator/placements.json (preview_places)",
+		"// Üretici (tradehub_core kökünde): python3 -m tradehub_core.media.pipeline.delivery.sizes"
+		" --emit-placements storefront > ../tradehubfront/src/lib/media/placements.gen.ts",
+		"",
+		"/** Önizleme penceresiyle ORTAK yerlerin `sizes` dizgeleri. */",
+		"export const STORE_PLACE_SIZES = {",
+	]
+	satirlar += [f'  {k}: "{v}",' for k, v in sorted(boyutlar.items())]
+	satirlar += ["} as const;"]
+	return "\n".join(satirlar) + "\n"
+
+
 def main(argv: Optional[Sequence[str]] = None) -> int:
-	"""`python -m tradehub_core.media.pipeline.delivery.sizes` — tabloyu bas, doğrula."""
+	"""`python -m tradehub_core.media.pipeline.delivery.sizes` — tabloyu bas, doğrula.
+
+	`--emit-ts`: yalnız storefront TS bloğunu basar (bkz. `emit_ts`).
+	"""
+	argumanlar = list(argv if argv is not None else sys.argv[1:])
+	if "--emit-placements" in argumanlar:
+		i = argumanlar.index("--emit-placements")
+		hedef = argumanlar[i + 1] if i + 1 < len(argumanlar) else ""
+		if hedef == "admin":
+			sys.stdout.write(emit_placements_admin())
+			return 0
+		if hedef == "storefront":
+			sys.stdout.write(emit_placements_storefront())
+			return 0
+		sys.stderr.write("Kullanım: --emit-placements admin|storefront\n")
+		return 2
+	if "--emit-ts" in argumanlar:
+		sys.stdout.write(emit_ts())
+		return 0
 	sonuc = verify()
 	print("# Türetilen `sizes` tablosu (kaynak: placements.json + 03-render-envanteri.md)\n")
 	for anahtar in sorted(sonuc.sizes):
@@ -594,6 +787,13 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 
 
 __all__ = [
+	"PREVIEW_SLOTS",
+	"PREVIEW_DEVICES",
+	"PREVIEW_FITS",
+	"PREVIEW_CONTEXTS",
+	"preview_places",
+	"emit_placements_admin",
+	"emit_placements_storefront",
 	"DEFAULT_TOLERANCE_PX",
 	"SLIDER_TOLERANCE_PX",
 	"SizesError",
@@ -613,6 +813,7 @@ __all__ = [
 	"VerifyResult",
 	"verify",
 	"required_px",
+	"emit_ts",
 	"main",
 ]
 

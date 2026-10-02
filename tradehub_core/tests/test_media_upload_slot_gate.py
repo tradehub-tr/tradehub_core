@@ -8,13 +8,21 @@
 200 alıyordu (panel E2E S1b bunu `test.fail` ile görünür tutuyordu). Kapı artık
 sunucuda: `upload_policy.check_slot` → `pipeline/policy/engine.py::evaluate`.
 
+GÜNCELLENDİ 2026-09-29 (kare kuralı): `product.image` slotunda kısa kenar/alan/
+oran RET kapısı (`require.{min_short_edge,min_area,allowed_ratios,ratio_tolerance}`)
+KALDIRILDI — ürüne bağlanan görsel artık kare 1000–2000 px beyaz dolguya
+otomatik çevriliyor (media/kare.py), küçük/oransız girdiyi reddetmenin gerekçesi
+kalmadı. 900×900 artık `product.image` slotuyla da KABUL edilir (aşağıdaki
+`test_900x900_product_image_slotunda_artik_kabul_edilir`). Kapının VACUOUS
+olmadığının kanıtı artık boyut değil biçim kapısıdır (`test_gif_product_image_slotunda_reddedilir`)
+ve bilinmeyen slot reddi (`test_bilinmeyen_slot_reddedilir`).
+
 Testlerin ağırlık merkezi ÜÇ iddia:
 
-  * slot BEYAN EDİLİNCE engelleyici ihlal 417 + kodla reddedilir ve dosya
-    YARATILMAZ;
+  * slot BEYAN EDİLİNCE hâlâ engelleyici bir ihlal olursa (biçim, decompression-
+    bomb, bilinmeyen slot, ...) 417 + kodla reddedilir ve dosya YARATILMAZ;
   * slot verilmeyince (genel yükleme) davranış DEĞİŞMEZ — aynı 900×900 kabul
-    edilir. Bu aynı zamanda ret testinin KIRMIZI KANITIDIR: reddi üreten tek
-    şey slot kapısı, kapı kalkarsa ret testi kırmızıya döner (vacuity);
+    edilir;
   * `warn` aksiyonlu ihlal (ör. `master_under_spec`) REDDETMEZ.
 
     docker exec istoc-dev-backend-1 bench --site istoc.localhost \
@@ -65,30 +73,42 @@ class TestUploadSlotKapisi(_DedupUcuTesti):
 
 	# -- ret: sunucu kapısı ------------------------------------------------------
 
-	def test_900x900_product_image_slotunda_reddedilir(self):
-		"""S1b'nin sunucu yarısı: 1000×1000 altı + slot → 417 sözleşmesiyle ret.
-
-		Kod `product_image_short_edge_too_small` — panel bu koda bakarak
-		düzeltici yönlendirme gösterir; metne bağlanmak çeviriyle kırılırdı.
+	def test_900x900_product_image_slotunda_artik_kabul_edilir(self):
+		"""2026-09-29 kare kuralı: reddetme yok. ÖNCEDEN (S1b sunucu yarısı) bu
+		1000×1000 altı + slot → 417 `product_image_short_edge_too_small` ile
+		reddediliyordu. Ürüne bağlanan görsel artık kare 1000–2000 px beyaz
+		dolguya otomatik çevrildiği için (media/kare.py) bu ret kapısı
+		kaldırıldı; vektör (900×900 PNG + `product.image` slotu) SİLİNMEDİ,
+		yalnız beklenen sonuç KABUL'e çevrildi.
 		"""
 		ad = f"w7-under-{self.suffix}.png"
-		with self.assertRaises(upload_policy.UploadRejected) as ctx:
-			self._yukle(900, 900, slot="product.image", ad=ad)
+		sonuc = self._yukle(900, 900, slot="product.image", ad=ad)
+		self.assertTrue(sonuc["file_url"])
+		self.addCleanup(lambda: self._dosya_temizle(sonuc["file_url"]))
 
-		# Mesajın sonundaki `[kod]` markörü ve yanıt sözlüğü — istemci sözleşmesi
-		# (`upload_policy.reddet` ikisini birden taşır; UploadRejected → HTTP 417).
-		self.assertIn("[product_image_short_edge_too_small]", str(ctx.exception))
-		self.assertEqual(
-			frappe.local.response.get("upload_error"),
-			"product_image_short_edge_too_small",
-		)
-		# Ölçülen ve gereken değer mesajda (düzeltici yönlendirme, S1 sözleşmesi).
-		self.assertIn("900", str(ctx.exception))
-		self.assertIn("1000", str(ctx.exception))
+	def test_gif_product_image_slotunda_reddedilir(self):
+		"""Sunucu kapısının hâlâ VACUOUS olmadığının kanıtı (bkz. modül dosya
+		başı notu): boyut/oran RET'i kaldırıldı ama biçim kapısı (accept.mime/
+		extensions) duruyor — product-image.json GIF kabul etmiyor.
+		"""
+		from PIL import Image
 
-		# Ret kayıt AÇILMADAN geldi: dosya kütüphaneye girmedi (.png ya da .webp).
+		buf = io.BytesIO()
+		Image.new("RGB", (1200, 1200), (10, 200, 40)).save(buf, "GIF")
+		ad = f"w7-format-{self.suffix}.gif"
+		frappe.set_user(self.b_owner)
+		try:
+			with self.assertRaises(upload_policy.UploadRejected) as ctx:
+				uc.upload_media(
+					file_name=ad,
+					content=base64.b64encode(buf.getvalue()).decode(),
+					slot="product.image",
+				)
+		finally:
+			frappe.set_user("Administrator")
+		self.assertIn("product_image_", str(ctx.exception))
 		self.assertFalse(
-			frappe.get_all("File", filters={"file_name": ["like", f"w7-under-{self.suffix}%"]})
+			frappe.get_all("File", filters={"file_name": ["like", f"w7-format-{self.suffix}%"]})
 		)
 
 	def test_bilinmeyen_slot_reddedilir(self):
@@ -118,11 +138,12 @@ class TestUploadSlotKapisi(_DedupUcuTesti):
 	def test_1200x1200_slotla_kabul_ve_warn_reddetmez(self):
 		"""Kurala uyan dosya slotla da kabul edilir; `warn` engel değildir.
 
-		1200×1200: kısa kenar ≥1000, alan ≥1 MP, oran 1:1 → engelleyici ihlal
-		yok. Uzun kenar 1200 < `master.min_long_edge` 2000 → `master_under_spec`
-		ÜRETİLİR ama aksiyonu `warn` (product-image.json `on_violation.master`)
-		— motor kararında `allow=True` kalır, yükleme geçer. Kapı warn'ı redde
-		çevirmeye başlarsa bu test kırmızıya döner.
+		GÜNCELLENDİ 2026-09-29 (kare kuralı): `master.min_long_edge` 2000 → 1000
+		indi, bu yüzden 1200 px artık `master_under_spec` bile ÜRETMİYOR — direkt
+		`allow=True`, sessiz kabul. Testin kendisi hâlâ geçerli bir 'warn asla
+		reddetmez' kanıtıdır (bkz. `test_900x900_product_image_slotunda_artik_kabul_edilir`
+		için de artık aynı hikâye geçerli); yalnız docstring'teki eski 'master_under_spec
+		ÜRETİLİR' iddiası artık YANLIŞ olduğu için düzeltildi.
 		"""
 		sonuc = self._yukle(1200, 1200, slot="product.image")
 		self.assertTrue(sonuc["file_url"])

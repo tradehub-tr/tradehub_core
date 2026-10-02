@@ -46,6 +46,11 @@ def thumbs_for(file_urls: list[str] | tuple[str, ...]) -> dict[str, dict[str, st
 		.select(file_dt.file_url.as_("src"), rendition.file_url.as_("url"), rendition.width)
 		.where(file_dt.file_url.isin(urls))
 		.where(rendition.state == "ready")
+		# Yalnız varlığın YAYINDAKİ sürümü ve emekli olmayan varlık (2026-09-30):
+		# kare dönüşümü eski varlığı `archived` bırakıyor; süzgeç yokken liste
+		# o eski, kare olmayan AVIF türevini küçük resim diye gösteriyordu.
+		.where(asset.state != "archived")
+		.where(rendition.version_hash == asset.active_version)
 		.where(rendition.width <= THUMB_MAX_WIDTH)
 		.where(rendition.format.isin(list(IMAGE_FORMATS)))
 		.where(rendition.file_url.isnotnull())

@@ -503,7 +503,9 @@ def backfill_localization(limit: int = 500, langs: tuple[str, ...] = ("en", "ar"
 # ── Çözünürlük geri doldurma ─────────────────────────────────────────────
 
 
-def backfill_dimensions(limit: int = 500) -> dict:
+def backfill_dimensions(
+	limit: int = 500, *, file_urls: list[str] | None = None, dry_run: bool = False
+) -> dict:
 	"""`th_media_width/height` boş olan görsellerin gerçek ölçüsünü yaz.
 
 	NEDEN GEREKLİ: ar-ge belgesi (§7.1 madde 4) "doğru değerler
@@ -519,22 +521,29 @@ def backfill_dimensions(limit: int = 500) -> dict:
 
 	Bozuk/okunamayan dosya sessizce atlanır ve sayılır: burada amaç ölçü
 	toplamak, doğrulama yapmak değil (o `upload_policy`'nin işi).
+
+	`file_urls` kapsamı bu adreslere daraltır (tek düğme ürün görseli
+	orkestratörü); `dry_run` ölçer ama yazmaz (`written` = yazılacak sayısı).
 	"""
 	import os
 
 	from PIL import Image
 
 	limit = max(1, min(2000, int(limit or 500)))
+	if file_urls is not None and not file_urls:
+		return {"scanned": 0, "written": 0, "unreadable": 0, "missing": 0, "dry_run": bool(dry_run)}
+	adres_kosulu = "AND file_url IN %(urls)s" if file_urls else ""
 	satirlar = frappe.db.sql(
-		"""
+		f"""
 		SELECT name, file_url, is_private FROM `tabFile`
 		WHERE is_folder = 0
 		  AND IFNULL(th_media_width, 0) = 0
 		  AND file_url IS NOT NULL AND file_url != ''
 		  AND LOWER(file_url) REGEXP '\\.(jpg|jpeg|png|webp|gif|bmp|tiff|tif)$'
-		LIMIT %s
-		""",
-		(limit,),
+		  {adres_kosulu}
+		LIMIT %(limit)s
+		""",  # noqa: S608 — `adres_kosulu` sabit metin; değerler parametre
+		{"limit": limit, "urls": tuple(file_urls or ())},
 		as_dict=True,
 	)
 
@@ -554,15 +563,23 @@ def backfill_dimensions(limit: int = 500) -> dict:
 		except Exception:
 			okunamayan += 1
 			continue
-		frappe.db.set_value(
-			"File",
-			satir["name"],
-			{"th_media_width": w, "th_media_height": h},
-			update_modified=False,
-		)
+		if not dry_run:
+			frappe.db.set_value(
+				"File",
+				satir["name"],
+				{"th_media_width": w, "th_media_height": h},
+				update_modified=False,
+			)
 		yazilan += 1
-	frappe.db.commit()
-	return {"scanned": len(satirlar), "written": yazilan, "unreadable": okunamayan, "missing": kayip}
+	if not dry_run:
+		frappe.db.commit()
+	return {
+		"scanned": len(satirlar),
+		"written": yazilan,
+		"unreadable": okunamayan,
+		"missing": kayip,
+		"dry_run": bool(dry_run),
+	}
 
 
 def translated_alt(file_url: str, lang: str) -> str:

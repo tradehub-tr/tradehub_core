@@ -42,6 +42,28 @@ class MediaRendition(Document):
 		self._derive_version_hash()
 		self._derive_rendition_key()
 		self._stamp_generated_at()
+		self._stamp_output_facts()
+
+	def _stamp_output_facts(self) -> None:
+		"""Çıktı dosyasının DPI / renk uzayı / alfa künyesi — dosyadan ÖLÇÜLÜR.
+
+		Üretim yolu değerleri encode edilen baytlardan zaten verir; bu kanca
+		diskten taşınan/yeniden kaydedilen satırlar (carry-forward, disk
+		atlaması) için. Ölçülemezse alanlar boş kalır — değer uydurulmaz.
+		"""
+		if (self.get("output_colorspace") or "").strip() or self.state != "ready":
+			return
+		from tradehub_core.media import image_facts
+
+		if str(self.format or "").lower() not in image_facts.RENDITION_IMAGE_FORMATS:
+			return
+		try:
+			degerler = image_facts.rendition_values(image_facts.measure_url(self.file_url or ""))
+		except Exception:
+			frappe.log_error(title="media rendition output facts", message=frappe.get_traceback())
+			return
+		for alan, deger in degerler.items():
+			self.set(alan, deger)
 
 	def _validate_state(self) -> None:
 		"""Soft-delete durumunu tutarlı ve fail-closed tut."""
