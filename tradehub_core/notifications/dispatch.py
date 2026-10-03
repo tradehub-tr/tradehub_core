@@ -27,6 +27,7 @@ import frappe
 from frappe.utils import add_to_date, get_url, now_datetime
 
 from tradehub_core.notifications import catalog, preferences, push, render, schedule, store, validation
+from tradehub_core.notifications.mailer import brand_sender
 
 DELIVERY = store.DELIVERY
 TERMINAL = ("sent", "accepted", "captured", "failed", "skipped", "cancelled", "uncertain", "digested")
@@ -367,6 +368,7 @@ def _send_email(row, msg, meta, payload, common):
 		return "skipped"
 	kwargs = {
 		"recipients": [recipient],
+		"sender": brand_sender(),
 		"subject": msg["subject"],
 		"message": msg["html"],
 		"now": False,
@@ -443,6 +445,7 @@ def send_security_email(event_key: str, recipient: str, data: dict, *, user: str
 	idem = hashlib.sha256(f"{event_key}:{frappe.generate_hash(length=20)}".encode()).hexdigest()
 	frappe.sendmail(
 		recipients=recipient,
+		sender=brand_sender(),
 		subject=msg["subject"],
 		message=msg["html"],
 		now=True,

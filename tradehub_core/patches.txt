@@ -384,3 +384,6 @@ tradehub_core.patches.v15_9_66_store_image_webp_profiles
 
 # --- Bildirim sistemi: olay kataloğu, şablon taslakları, iki içerik rolü (atanmaz), gönderim indeksleri ---
 tradehub_core.patches.v15_9_67_notification_catalog_seed
+
+# --- E-posta: ERPNext "Sent via ERPNext" standart altbilgisi kapatılır (bir kez; yönetici geri açabilir) ---
+tradehub_core.patches.v15_9_68_disable_standard_email_footer
