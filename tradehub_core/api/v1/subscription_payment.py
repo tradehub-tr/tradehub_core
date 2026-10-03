@@ -332,6 +332,36 @@ def _notify_admins_new_payment(payment) -> None:
 		frappe.log_error(f"admin notify fail: {payment.name}: {exc}", "subscription_payment.notify_admin")
 
 
+def _receipt_event_data(payment, owner: str) -> dict:
+	"""Makbuz e-postası verisi — yalnız gerçek alanlar. Makbuz/fatura numarası ve makbuz URL'si
+	veri modelinde yok (B0): boş bırakılır, şablondaki ilgili blok koşulla düşer."""
+	from tradehub_core.notifications.dispatch import fmt_date, fmt_dt
+	from tradehub_core.notifications.eventdata import absolute
+
+	sub = frappe.db.get_value(
+		"Store Subscription", {"store": payment.store}, ["current_period_start", "current_period_end"], as_dict=True
+	) or {}
+	period = ""
+	if sub.get("current_period_start") and sub.get("current_period_end"):
+		period = f"{fmt_date(sub['current_period_start'])} – {fmt_date(sub['current_period_end'])}"
+	cycle = {"monthly": "aylık", "yearly": "yıllık", "annual": "yıllık"}.get(payment.billing_cycle or "", payment.billing_cycle or "")
+	return {
+		"company_name": frappe.db.get_value("Admin Seller Profile", payment.store, "seller_name") or payment.store,
+		"plan_name": frappe.db.get_value("Subscription Plan", payment.plan, "plan_name") or payment.plan,
+		"billing_cycle": cycle,
+		"period": period,
+		"total": frappe.utils.fmt_money(payment.amount, currency=payment.currency),
+		"paid_at": fmt_dt(payment.confirmed_at),
+		"payment_reference": payment.reference_code or payment.name,
+		"receipt_no": "",
+		"receipt_url": "",
+		"card_last4": "",
+		"period_end": fmt_date(sub.get("current_period_end")) if sub.get("current_period_end") else "",
+		"invoice_note": True,
+		"subscription_url": absolute("/panel/abonelik"),
+	}
+
+
 def _notify_seller_payment_result(payment, confirmed: bool) -> None:
 	"""Onay/ret sonrası satıcıya bildirim (panel + e-posta)."""
 	try:
@@ -345,6 +375,18 @@ def _notify_seller_payment_result(payment, confirmed: bool) -> None:
 			title = "Ödeme talebiniz reddedildi"
 			reason = (payment.rejection_reason or "").strip()
 			message = "Havale ödemeniz onaylanamadı." + (f" Sebep: {reason}" if reason else "")
+		extra = {}
+		if confirmed:
+			# Ödeme makbuzu yalnız onay dalında; ret "ödendi" makbuzuna bağlanmaz.
+			from tradehub_core.notifications.eventdata import safe
+
+			data = safe(_receipt_event_data, payment, owner)
+			if data:
+				extra = {
+					"event_key": "payment.receipt",
+					"event_data": data,
+					"occurrence_id": f"Subscription Payment:{payment.name}:confirmed",
+				}
 		notify(
 			recipient_user=owner,
 			type="system",
@@ -356,6 +398,7 @@ def _notify_seller_payment_result(payment, confirmed: bool) -> None:
 			send_email=True,
 			email_subject=title,
 			email_body=message,
+			**extra,
 		)
 	except Exception as exc:  # noqa: BLE001
 		frappe.log_error(f"seller notify fail: {payment.name}: {exc}", "subscription_payment.notify_seller")

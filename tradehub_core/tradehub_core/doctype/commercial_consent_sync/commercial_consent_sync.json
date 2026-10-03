@@ -1,0 +1,115 @@
+{
+ "actions": [],
+ "creation": "2026-10-03 20:30:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "consent_log",
+  "user",
+  "channel",
+  "action",
+  "target_ref",
+  "target_hash",
+  "status",
+  "attempts",
+  "next_retry_at",
+  "provider_reference",
+  "error_code"
+ ],
+ "fields": [
+  {
+   "fieldname": "consent_log",
+   "fieldtype": "Link",
+   "label": "İzin kaydı",
+   "options": "User Consent Log",
+   "reqd": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "user",
+   "fieldtype": "Link",
+   "label": "Kullanıcı",
+   "options": "User",
+   "search_index": 1
+  },
+  {
+   "fieldname": "channel",
+   "fieldtype": "Select",
+   "label": "Kanal",
+   "options": "email\nsms",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "action",
+   "fieldtype": "Select",
+   "label": "İşlem",
+   "options": "grant\nrevoke",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "target_ref",
+   "fieldtype": "Data",
+   "label": "Hedef (maskeli)",
+   "length": 140
+  },
+  {
+   "fieldname": "target_hash",
+   "fieldtype": "Data",
+   "label": "Hedef özeti",
+   "length": 64
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "Durum",
+   "options": "bekliyor\nislendi\nbasarisiz\ngecersiz",
+   "default": "bekliyor",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "attempts",
+   "fieldtype": "Int",
+   "label": "Deneme",
+   "default": "0"
+  },
+  {
+   "fieldname": "next_retry_at",
+   "fieldtype": "Datetime",
+   "label": "Sonraki deneme"
+  },
+  {
+   "fieldname": "provider_reference",
+   "fieldtype": "Data",
+   "label": "Sağlayıcı referansı",
+   "length": 140
+  },
+  {
+   "fieldname": "error_code",
+   "fieldtype": "Data",
+   "label": "Hata kodu",
+   "length": 64
+  }
+ ],
+ "links": [],
+ "modified": "2026-10-03 20:30:00.000000",
+ "modified_by": "Administrator",
+ "module": "Tradehub Core",
+ "name": "Commercial Consent Sync",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "report": 1,
+   "export": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 0,
+ "autoname": "hash",
+ "naming_rule": "Random"
+}

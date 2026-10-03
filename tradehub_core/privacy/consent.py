@@ -30,6 +30,11 @@ def record_consent(
 		}
 	)
 	doc.insert(ignore_permissions=True)
+	if consent_type in ("marketing_email", "marketing_sms"):
+		# Ticari izin kararı tek kayıt kaynağıdır; dış aktarım (İYS) satırı köprüden açılır.
+		from tradehub_core.notifications.consent_bridge import after_decision
+
+		after_decision(doc.name)
 	return doc.name
 
 

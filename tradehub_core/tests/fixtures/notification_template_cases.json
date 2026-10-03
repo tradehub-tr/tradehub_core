@@ -1,0 +1,35 @@
+{
+  "_note": "Bildirim şablon dili ortak fixture'ı. Sunucu (tests/test_notification_template_lang.py) ve panel (admin-panel/frontend/src/utils/notificationTemplates/__tests__/parity.test.js) aynı dosyayı okur. Panel kopyası: admin-panel/frontend/src/utils/notificationTemplates/__tests__/fixtures/notification_template_cases.json — iki dosya bayt bayt aynı tutulur.",
+  "render": [
+    {"name": "basit değişken", "template": "Merhaba {{name}}", "scope": {"name": "Deniz"}, "expected": "Merhaba Deniz"},
+    {"name": "noktalı yol", "template": "{{order.no}}", "scope": {"order": {"no": "TH-1"}}, "expected": "TH-1"},
+    {"name": "eksik değişken boş", "template": "[{{yok}}]", "scope": {}, "expected": "[]"},
+    {"name": "if doğru", "template": "a{{#if x}}B{{/if}}c", "scope": {"x": true}, "expected": "aBc"},
+    {"name": "if boş dize yanlış", "template": "a{{#if x}}B{{/if}}c", "scope": {"x": " "}, "expected": "ac"},
+    {"name": "if boş liste yanlış", "template": "a{{#if x}}B{{/if}}c", "scope": {"x": []}, "expected": "ac"},
+    {"name": "each takma ad", "template": "{{#each groups}}<{{group.title}}>{{/each}}", "scope": {"groups": [{"title": "A"}, {"title": "B"}]}, "expected": "<A><B>"},
+    {"name": "iç içe each", "template": "{{#each groups}}{{group.t}}:{{#each group.items}}{{item.v}},{{/each}};{{/each}}", "scope": {"groups": [{"t": "G", "items": [{"v": 1}, {"v": 2}]}]}, "expected": "G:1,2,;"},
+    {"name": "each içinde if", "template": "{{#each docs}}{{doc.name}}{{#if doc.reason}}({{doc.reason}}){{/if}} {{/each}}", "scope": {"docs": [{"name": "A", "reason": "r"}, {"name": "B"}]}, "expected": "A(r) B "},
+    {"name": "html kaçış", "template": "<b>{{v}}</b>", "scope": {"v": "<i>&\"'"}, "mode": "html", "expected": "<b>&lt;i&gt;&amp;&quot;&#x27;</b>"},
+    {"name": "nesne değeri yazılmaz", "template": "[{{o}}]", "scope": {"o": {"a": 1}}, "expected": "[]"}
+  ],
+  "structure": [
+    {"name": "geçerli", "template": "{{#each a}}{{#if b}}x{{/if}}{{/each}}", "issue": null},
+    {"name": "kapanmamış each", "template": "{{#each a}}x", "issue": "unclosed_loop"},
+    {"name": "fazla /each", "template": "x{{/each}}", "issue": "unclosed_loop"},
+    {"name": "kapanmamış if", "template": "{{#if a}}x", "issue": "unclosed_condition"},
+    {"name": "çapraz kapanış", "template": "{{#each a}}{{#if b}}{{/each}}{{/if}}", "issue": "unclosed_condition"}
+  ],
+  "url": [
+    {"value": "https://istoc.com/a", "ok": true},
+    {"value": "/pages/x", "ok": true},
+    {"value": "mailto:destek@istoc.com", "ok": true},
+    {"value": "{{order_url}}", "ok": true},
+    {"value": "{{order_url}}?x=1", "ok": true},
+    {"value": "{{order_no}}", "ok": false},
+    {"value": "http://istoc.com", "ok": false},
+    {"value": "//evil.example", "ok": false},
+    {"value": "javascript:alert(1)", "ok": false},
+    {"value": "data:text/html,1", "ok": false}
+  ]
+}

@@ -240,12 +240,35 @@ def send_registration_otp(email: str):
 		expires_in_sec=1800,
 	)
 
-	frappe.sendmail(
-		recipients=email,
-		subject="iSTOC — Kayıt Doğrulama Kodu",
-		template="registration_otp",
-		args={"code": otp_code},
-		now=True,
+	def _legacy_otp_mail():
+		frappe.sendmail(
+			recipients=email,
+			subject="iSTOC — Kayıt Doğrulama Kodu",
+			template="registration_otp",
+			args={"code": otp_code},
+			now=True,
+		)
+
+	# Yayınlanmış "identity.otp" şablonu varsa o kullanılır; yoksa mevcut şablonlu gönderim.
+	# Kod ve süre burada üretilen gerçek değerlerdir (Redis TTL 1800 sn); kod teslim günlüğüne yazılmaz.
+	from frappe.utils import add_to_date
+
+	from tradehub_core.notifications.dispatch import fmt_dt, send_security_email
+
+	now = now_datetime()
+	send_security_email(
+		"identity.otp",
+		email,
+		{
+			"otp_code": otp_code,
+			"expires_minutes": 30,
+			"expires_at": fmt_dt(add_to_date(now, minutes=30)),
+			"action_label": _("Yeni hesap kaydı"),
+			"requested_at": fmt_dt(now),
+			"email": email,
+		},
+		user=None,
+		legacy=_legacy_otp_mail,
 	)
 
 	return {"success": True, "expires_in_minutes": 30}
@@ -743,12 +766,43 @@ def forgot_password(email: str):
 		# Build reset link pointing to the storefront page
 		link = f"{storefront_url()}/pages/auth/reset-password?key={reset_key}"
 
-		frappe.sendmail(
-			recipients=email,
-			subject="iSTOC — Şifre Sıfırlama",
-			template="tradehub_password_reset",
-			args={"link": link, "full_name": user.full_name},
-			now=True,
+		def _legacy_reset_mail():
+			frappe.sendmail(
+				recipients=email,
+				subject="iSTOC — Şifre Sıfırlama",
+				template="tradehub_password_reset",
+				args={"link": link, "full_name": user.full_name},
+				now=True,
+			)
+
+		# Mevcut tek kullanımlık anahtar ve 24 saat kuralı korunur (reset_password); yalnız içerik
+		# yayınlanmış şablondan gelir. Bağlantı teslim günlüğüne yazılmaz.
+		from tradehub_core.notifications.dispatch import fmt_dt, send_security_email
+
+		send_security_email(
+			"identity.password_reset",
+			email,
+			{
+				"first_name": user.first_name or "",
+				"email": email,
+				"reset_url": link,
+				"reset_expires_hours": 24,
+				"requested_at": fmt_dt(now_datetime()),
+			},
+			user=email,
+			legacy=_legacy_reset_mail,
+		)
+		# Zorunlu uygulama içi kanal: yalnız talep zamanı, bağlantı/anahtar YOK. Yayınlanmış
+		# şablonu yoksa hiçbir şey yazılmaz (eski akışta da uygulama içi bildirim yoktu).
+		from tradehub_core.notifications.dispatch import emit
+
+		emit(
+			"identity.password_reset",
+			email,
+			{"requested_at": fmt_dt(now_datetime())},
+			f"password_reset:{email}:{frappe.generate_hash(length=10)}",
+			meta={"type": "system"},
+			only_channels=("inapp",),
 		)
 
 	return {

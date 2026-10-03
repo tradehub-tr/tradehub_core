@@ -1293,3 +1293,15 @@ scheduler_events["daily"].extend(
 	]
 )
 scheduler_events.setdefault("monthly", []).append(f"{_SH}.mcp.ops.reset_monthly_quotas")
+
+# ── Bildirim sistemi (MOGEM-747; desing/bildirim-sablonlari-2026-10-02/BACKEND-PLANI.md) ──
+# Katalog/şablon taslağı/rol/indeks seed'i idempotent: mevcut kural, taslak, yayın ve tercih EZİLMEZ.
+after_migrate.append("tradehub_core.notifications.seed.run")
+# Süpürücü: kayıp kuyruk işi, sessiz saati biten push, belirsiz gönderim, SMTP sonucu.
+scheduler_events["cron"].setdefault("*/5 * * * *", []).append("tradehub_core.notifications.dispatch.sweep")
+# Özet: zamanı gelen öğeleri kullanıcı başına tek e-postada toplar (özet saati ayardan, saatlik çözünürlük).
+scheduler_events["hourly"].append("tradehub_core.notifications.jobs.run_digests")
+# Sipariş onay hatırlatması: Platform Notification Settings'te açılmadıkça hiçbir şey yapmaz (opt-in).
+scheduler_events["hourly"].append("tradehub_core.notifications.jobs.run_order_reminders")
+# Teslim günlüğü saklama süresi (terminal kayıtlar 180 gün, test gönderimleri 30 gün; geçici değer).
+scheduler_events["daily"].append("tradehub_core.notifications.purge.cleanup_deliveries")

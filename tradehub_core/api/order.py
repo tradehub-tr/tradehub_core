@@ -4,6 +4,7 @@ from frappe.utils import cint, flt, getdate
 
 from tradehub_core.api._pagination import normalize_pagination
 from tradehub_core.api.cart import DEFERRED_PAYMENT_METHODS
+from tradehub_core.notifications.eventdata import generic_event_data
 from tradehub_core.utils.auth_guards import require_verified_email
 from tradehub_core.utils.notify import notify
 from tradehub_core.utils.stock import deduct_stock_for_order, release_stock_for_order
@@ -382,6 +383,9 @@ def cancel_order(order_number, reason=None):
 				action_url=f"/panel/seller-orders?highlight={order.name}",
 				reference_doctype="Order",
 				reference_name=order.name,
+				event_key="order.cancelled",
+				event_data=generic_event_data(seller_user, order.name, f"/panel/seller-orders?highlight={order.name}"),
+				occurrence_id=f"Order:{order.name}:cancelled",
 			)
 
 	return {
@@ -1015,6 +1019,9 @@ def seller_ship_order(order_number, tracking_number="", carrier=""):
 			action_url=f"/pages/dashboard/orders.html?order={order_number}",
 			reference_doctype="Order",
 			reference_name=order.name,
+			event_key="order.shipped",
+			event_data=generic_event_data(buyer, order_number, f"/pages/dashboard/orders.html?order={order_number}"),
+			occurrence_id=f"Order:{order.name}:shipped",
 		)
 
 	return {"success": True, "order_number": order_number}

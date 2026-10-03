@@ -59,8 +59,17 @@ def notify(
 	send_email: bool = False,
 	email_subject: str = "",
 	email_body: str = "",
+	event_key: str = "",
+	event_data: dict | None = None,
+	occurrence_id: str = "",
 ) -> str:
 	"""Platform Notification kaydı oluştur, opsiyonel olarak e-posta gönder.
+
+	`event_key` (bildirim kataloğu anahtarı) verilirse çağrı olay odaklı gönderim servisine
+	(`notifications.dispatch.emit`) gider: kullanıcı tercihi, kanal kuralı ve yayınlanmış şablon
+	uygulanır. Yeni yolun üstlendiği kanalı (ya da kapalı/kullanıcının kapattığı kanalı) aşağıdaki
+	eski yol GÖNDERMEZ; yayınlanmış şablonu olmayan kanal eski davranışla devam eder. `event_key`
+	vermeyen mevcut çağrılar hiç değişmeden çalışır.
 
 	`send_email=True` verilirse Platform Notification kaydedildikten sonra
 	`frappe.sendmail` queue'ya atılır (now=False). Hata durumunda kayıt
@@ -81,6 +90,27 @@ def notify(
 	# Administrator'a yanlis konfigle binlerce mesaj birikiyordu (#8).
 	if recipient_user in ("Guest", "Administrator"):
 		return ""
+
+	if event_key:
+		handled = _emit_event(
+			event_key,
+			recipient_user,
+			event_data or {},
+			occurrence_id or f"{reference_doctype}:{reference_name}:{event_key}",
+			{
+				"type": type,
+				"reference_doctype": reference_doctype,
+				"reference_name": reference_name,
+				"recipient_role": recipient_role,
+			},
+		)
+		if "email" in handled:
+			send_email = False
+		if "inapp" in handled:
+			if not send_email:
+				return ""
+			# Uygulama içi kanal yeni yolda; legacy yalnız e-postayı (şablonu yoksa) gönderir.
+			return _legacy_email_only(recipient_user, title, message, email_subject, email_body, reference_doctype, reference_name)
 
 	effective_channel = "email" if send_email else channel
 
@@ -136,6 +166,30 @@ def notify(
 	# Caller commit'ten sorumlu — Frappe HTTP request'leri ve doctype save
 	# akislari otomatik commit eder.
 	return doc.name
+
+
+def _emit_event(event_key: str, user: str, data: dict, occurrence_id: str, meta: dict) -> set:
+	"""Yeni gönderim yolunu çağırır; hata olursa (kanal kaybetmemek için) eski yola bırakır."""
+	try:
+		from tradehub_core.notifications.dispatch import emit
+
+		return emit(event_key, user, data, occurrence_id, meta=meta)["handled"]
+	except Exception:
+		frappe.log_error(title=f"notify: dispatch {event_key}")
+		return set()
+
+
+def _legacy_email_only(user, title, message, email_subject, email_body, reference_doctype, reference_name) -> str:
+	recipient_email = _resolve_user_email(user)
+	if recipient_email:
+		_send_email(
+			recipient_email,
+			email_subject or title,
+			email_body or message,
+			reference_doctype=reference_doctype,
+			reference_name=reference_name,
+		)
+	return ""
 
 
 def _resolve_user_email(user: str) -> str:

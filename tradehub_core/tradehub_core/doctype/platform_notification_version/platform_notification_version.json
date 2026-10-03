@@ -1,0 +1,79 @@
+{
+ "actions": [],
+ "creation": "2026-10-03 20:30:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "event",
+  "version",
+  "content",
+  "translation_states",
+  "note",
+  "created_by",
+  "created_at"
+ ],
+ "fields": [
+  {
+   "fieldname": "event",
+   "fieldtype": "Link",
+   "label": "Olay",
+   "options": "Platform Notification Event",
+   "reqd": 1,
+   "search_index": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "version",
+   "fieldtype": "Int",
+   "label": "Sürüm",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "content",
+   "fieldtype": "JSON",
+   "label": "İçerik"
+  },
+  {
+   "fieldname": "translation_states",
+   "fieldtype": "JSON",
+   "label": "Çeviri durumları"
+  },
+  {
+   "fieldname": "note",
+   "fieldtype": "Small Text",
+   "label": "Not"
+  },
+  {
+   "fieldname": "created_by",
+   "fieldtype": "Link",
+   "label": "Yayınlayan",
+   "options": "User"
+  },
+  {
+   "fieldname": "created_at",
+   "fieldtype": "Datetime",
+   "label": "Yayın zamanı"
+  }
+ ],
+ "links": [],
+ "modified": "2026-10-03 20:30:00.000000",
+ "modified_by": "Administrator",
+ "module": "Tradehub Core",
+ "name": "Platform Notification Version",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "report": 1,
+   "export": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 0,
+ "autoname": "prompt",
+ "naming_rule": "Set by user"
+}

@@ -1,0 +1,158 @@
+{
+ "actions": [],
+ "creation": "2026-10-03 20:30:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "dispatch_enabled",
+  "sb_digest",
+  "digest_time",
+  "digest_weekday",
+  "digest_timezone",
+  "digest_group_limit",
+  "sb_quiet",
+  "quiet_backlog_policy",
+  "urgent_push_bypasses_quiet",
+  "sb_reminder",
+  "order_reminder_enabled",
+  "order_reminder_after_hours",
+  "sb_test",
+  "test_email_allowlist",
+  "test_sms_allowlist",
+  "test_user_allowlist",
+  "test_hourly_limit",
+  "sb_sms",
+  "sms_currency_as_text"
+ ],
+ "fields": [
+  {
+   "fieldname": "dispatch_enabled",
+   "fieldtype": "Check",
+   "label": "Yeni gönderim yolu açık",
+   "default": "1"
+  },
+  {
+   "fieldname": "sb_digest",
+   "fieldtype": "Section Break",
+   "label": "Özet"
+  },
+  {
+   "fieldname": "digest_time",
+   "fieldtype": "Data",
+   "label": "Özet saati (HH:MM)",
+   "length": 5,
+   "default": "08:00"
+  },
+  {
+   "fieldname": "digest_weekday",
+   "fieldtype": "Select",
+   "label": "Haftalık özet günü",
+   "options": "monday\ntuesday\nwednesday\nthursday\nfriday\nsaturday\nsunday",
+   "default": "monday"
+  },
+  {
+   "fieldname": "digest_timezone",
+   "fieldtype": "Data",
+   "label": "Özet saat dilimi",
+   "length": 64,
+   "default": "Europe/Istanbul"
+  },
+  {
+   "fieldname": "digest_group_limit",
+   "fieldtype": "Int",
+   "label": "Grup başına satır",
+   "default": "3"
+  },
+  {
+   "fieldname": "sb_quiet",
+   "fieldtype": "Section Break",
+   "label": "Sessiz saat"
+  },
+  {
+   "fieldname": "quiet_backlog_policy",
+   "fieldtype": "Select",
+   "label": "Sessiz saatte biriken push",
+   "options": "summarize\ndeliver_each\ndrop",
+   "default": "summarize"
+  },
+  {
+   "fieldname": "urgent_push_bypasses_quiet",
+   "fieldtype": "Check",
+   "label": "Acil push sessiz saati deler",
+   "default": "0"
+  },
+  {
+   "fieldname": "sb_reminder",
+   "fieldtype": "Section Break",
+   "label": "Sipariş onay hatırlatması"
+  },
+  {
+   "fieldname": "order_reminder_enabled",
+   "fieldtype": "Check",
+   "label": "Hatırlatma zamanlayıcısı açık",
+   "default": "0"
+  },
+  {
+   "fieldname": "order_reminder_after_hours",
+   "fieldtype": "Int",
+   "label": "Kaç saat sonra hatırlat",
+   "default": "0"
+  },
+  {
+   "fieldname": "sb_test",
+   "fieldtype": "Section Break",
+   "label": "Test gönderimi"
+  },
+  {
+   "fieldname": "test_email_allowlist",
+   "fieldtype": "Small Text",
+   "label": "İzinli test e-posta adresleri"
+  },
+  {
+   "fieldname": "test_sms_allowlist",
+   "fieldtype": "Small Text",
+   "label": "İzinli test telefonları"
+  },
+  {
+   "fieldname": "test_user_allowlist",
+   "fieldtype": "Small Text",
+   "label": "İzinli test kullanıcıları"
+  },
+  {
+   "fieldname": "test_hourly_limit",
+   "fieldtype": "Int",
+   "label": "Saatlik test sınırı (kullanıcı ve hedef başına)",
+   "default": "10"
+  },
+  {
+   "fieldname": "sb_sms",
+   "fieldtype": "Section Break",
+   "label": "SMS"
+  },
+  {
+   "fieldname": "sms_currency_as_text",
+   "fieldtype": "Check",
+   "label": "SMS'te ₺ yerine TL gönder",
+   "default": "0"
+  }
+ ],
+ "links": [],
+ "modified": "2026-10-03 20:30:00.000000",
+ "modified_by": "Administrator",
+ "module": "Tradehub Core",
+ "name": "Platform Notification Settings",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 0,
+ "issingle": 1
+}

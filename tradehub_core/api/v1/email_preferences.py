@@ -36,6 +36,13 @@ def get_email_preferences():
 
 	# Kullanıcı tercihlerini çek
 	toggles, checks = _get_user_prefs(user)
+	# "Genel bildirim e-postaları" artık yeni bildirim tercihlerinde yaşar (tek doğruluk kaynağı).
+	from tradehub_core.notifications.preferences import legacy_general_enabled
+
+	general = legacy_general_enabled(user)
+	if general is not None:
+		checks["general_notification"] = general
+		toggles.pop("notification", None)
 
 	result = []
 	for cat in categories:
@@ -100,6 +107,15 @@ def save_email_preferences(preferences=None):
 		doc.user = user
 		doc.preferences_json = prefs_json
 		doc.insert(ignore_permissions=True)
+
+	# Genel bildirim e-postası seçimi yeni kayda adapte edilir; dispute/pazarlama/anket anahtarlarının
+	# bildirim kataloğunda karşılığı yok, eski kayıtta kalır (ticari izne dönüştürülmez).
+	if "general_notification" in checks or "notification" in toggles:
+		from tradehub_core.notifications.preferences import apply_legacy_general
+
+		apply_legacy_general(
+			user, bool(toggles.get("notification", True)) and bool(checks.get("general_notification", True))
+		)
 
 	frappe.db.commit()
 	return {"success": True}

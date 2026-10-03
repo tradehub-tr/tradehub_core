@@ -6,6 +6,7 @@ from frappe import _
 from frappe.model.document import Document
 from frappe.utils import flt, now_datetime
 
+from tradehub_core.notifications.eventdata import generic_event_data
 from tradehub_core.utils.content_i18n import sync_content_translations
 from tradehub_core.utils.notify import notify
 
@@ -263,6 +264,9 @@ class Listing(Document):
 				action_url=f"/app/listing/{self.name}",
 				reference_doctype="Listing",
 				reference_name=self.name,
+				event_key="store.moderation_result",
+				event_data=generic_event_data(seller_user, title_text, "/panel/seller-listings"),
+				occurrence_id=f"Listing:{self.name}:Active:{self.modified}",
 			)
 		elif self.status == "Rejected":
 			reason = self.rejection_reason or ""
@@ -275,6 +279,9 @@ class Listing(Document):
 				action_url=f"/app/listing/{self.name}",
 				reference_doctype="Listing",
 				reference_name=self.name,
+				event_key="store.moderation_result",
+				event_data=generic_event_data(seller_user, title_text, "/panel/seller-listings"),
+				occurrence_id=f"Listing:{self.name}:Rejected:{self.modified}",
 			)
 
 	def _check_stock_alerts(self):

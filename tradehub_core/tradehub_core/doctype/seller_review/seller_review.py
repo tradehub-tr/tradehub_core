@@ -2,6 +2,7 @@ import frappe
 from frappe import _
 from frappe.model.document import Document
 
+from tradehub_core.notifications.eventdata import generic_event_data
 from tradehub_core.utils.notify import notify
 
 
@@ -30,6 +31,9 @@ class SellerReview(Document):
 			action_url="/review-moderation",
 			reference_doctype="Seller Review",
 			reference_name=self.name,
+			event_key="review.created",
+			event_data=generic_event_data(seller_user, self.name, "/panel/review-moderation"),
+			occurrence_id=f"Seller Review:{self.name}:created",
 		)
 
 	def _notify_review_status_change(self):

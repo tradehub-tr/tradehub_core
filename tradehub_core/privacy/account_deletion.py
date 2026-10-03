@@ -77,6 +77,7 @@ def anonymize_deleted_account(user: str) -> None:
 	_anonymize_search_history(user)
 	_anonymize_favorites(user)
 	_cleanup_sessions_and_tokens(user)
+	_anonymize_notification_data(user)
 	_anonymize_user_media(user)
 
 	# Clear the deletion_requested_on to prevent re-processing
@@ -313,6 +314,17 @@ def _cleanup_sessions_and_tokens(user: str) -> None:
 		records = frappe.get_all(doctype, filters={"user": user}, pluck="name")
 		for rec_name in records:
 			frappe.delete_doc(doctype, rec_name, ignore_permissions=True, force=True)
+
+
+def _anonymize_notification_data(user: str) -> None:
+	"""Bildirim tercihi silinir; bekleyen gönderimler iptal, teslim günlüğünde hedef/içerik temizlenir.
+
+	İzin kararı (User Consent Log) mevcut akıştaki gibi hukuki kayıt olarak kalır; yalnız aktarım
+	satırındaki maskeli hedef ve özet silinir.
+	"""
+	from tradehub_core.notifications.purge import anonymize_user
+
+	anonymize_user(user)
 
 
 def _own_uploaded_media_urls(user: str) -> list[str]:

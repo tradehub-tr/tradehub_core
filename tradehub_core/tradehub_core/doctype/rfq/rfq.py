@@ -2,6 +2,7 @@ import frappe
 from frappe import _
 from frappe.model.document import Document
 
+from tradehub_core.notifications.eventdata import generic_event_data
 from tradehub_core.utils.notify import notify
 
 
@@ -159,6 +160,9 @@ class RFQ(Document):
 				action_url=f"/pages/dashboard/inquiries.html?tab=marketplace&rfq={self.name}",
 				reference_doctype="RFQ",
 				reference_name=self.name,
+				event_key="rfq.created",
+				event_data=generic_event_data(user, self.name, f"/pages/dashboard/inquiries.html?tab=marketplace&rfq={self.name}"),
+				occurrence_id=f"RFQ:{self.name}:matched",
 			)
 
 	def _notify_active_quote_sellers_on_close(self):
