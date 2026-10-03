@@ -1,3 +1,14 @@
+## [v1.18.3-alpha.2] - 2026-10-03 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Duzeltildi
+- fix(email): marka gönderen adını ve altbilgi ayarını düzelt (@ahmeetseker)
+  - Platform e-postalarında varsayılan gönderen adını iStoc yaparak Frappe adının kullanıcıya görünmesini engelle
+  - Doğrulama, OTP, şifre sıfırlama ve bildirim e-postalarında ortak brand_sender yardımcısını kullan
+  - ERPNext standart e-posta altbilgisini kapatan patch ekleyerek marka dışı altbilginin gitmesini önle
+
+---
 ## [v1.18.3-alpha.1] - 2026-10-03 ALPHA
 
 Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
