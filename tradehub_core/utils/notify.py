@@ -213,8 +213,11 @@ def _send_email(
 	Default outgoing Email Account yoksa Frappe sessizce skip eder; hata
 	yakalanırsa False döner ve email_sent False kalır.
 	"""
+	from tradehub_core.notifications.mailer import brand_sender
+
 	kwargs = {
 		"recipients": [recipient],
+		"sender": brand_sender(),
 		"subject": subject,
 		"message": body_html,
 		"now": False,

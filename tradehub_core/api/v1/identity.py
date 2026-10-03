@@ -202,6 +202,7 @@ def _create_email_verification(email: str, first_name: str):
 
 	frappe.sendmail(
 		recipients=email,
+		sender=_brand_sender(),
 		subject="iSTOC — Email Adresinizi Doğrulayın",
 		template="tradehub_email_verification",
 		args={"link": link, "first_name": first_name},
@@ -243,6 +244,7 @@ def send_registration_otp(email: str):
 	def _legacy_otp_mail():
 		frappe.sendmail(
 			recipients=email,
+			sender=_brand_sender(),
 			subject="iSTOC — Kayıt Doğrulama Kodu",
 			template="registration_otp",
 			args={"code": otp_code},
@@ -769,6 +771,7 @@ def forgot_password(email: str):
 		def _legacy_reset_mail():
 			frappe.sendmail(
 				recipients=email,
+				sender=_brand_sender(),
 				subject="iSTOC — Şifre Sıfırlama",
 				template="tradehub_password_reset",
 				args={"link": link, "full_name": user.full_name},
@@ -2267,3 +2270,10 @@ def complete_registration_application(
 	frappe.db.commit()
 
 	return {"success": True, "application": doc.name}
+
+
+def _brand_sender():
+	"""Gönderen adı "iStoc" (site_config'te ad yoksa Frappe "Frappe" yazıyordu)."""
+	from tradehub_core.notifications.mailer import brand_sender
+
+	return brand_sender()
