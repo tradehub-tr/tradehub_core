@@ -12,6 +12,7 @@ from frappe import _
 from frappe.model.document import Document
 from frappe.utils import now_datetime, time_diff_in_hours
 
+from tradehub_core.notifications.eventdata import generic_event_data
 from tradehub_core.utils.notify import notify
 
 EDITABLE_HOURS = 24
@@ -393,6 +394,9 @@ class ListingReview(Document):
 			action_url="/review-moderation",
 			reference_doctype="Listing Review",
 			reference_name=self.name,
+			event_key="review.created",
+			event_data=generic_event_data(seller_user, self.listing, "/panel/review-moderation"),
+			occurrence_id=f"Listing Review:{self.name}:created",
 		)
 
 	def _notify_seller_published(self):

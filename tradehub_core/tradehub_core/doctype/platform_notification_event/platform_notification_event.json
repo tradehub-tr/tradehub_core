@@ -1,0 +1,105 @@
+{
+ "actions": [],
+ "creation": "2026-10-03 20:30:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "event_key",
+  "category",
+  "recipients",
+  "channels",
+  "defaults",
+  "delivery",
+  "mandatory",
+  "enabled",
+  "sort_order",
+  "revision"
+ ],
+ "fields": [
+  {
+   "fieldname": "event_key",
+   "fieldtype": "Data",
+   "label": "Olay anahtarı",
+   "reqd": 1,
+   "unique": 1,
+   "set_only_once": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "category",
+   "fieldtype": "Data",
+   "label": "Kategori",
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "recipients",
+   "fieldtype": "JSON",
+   "label": "Alıcılar"
+  },
+  {
+   "fieldname": "channels",
+   "fieldtype": "JSON",
+   "label": "Kanal kuralları"
+  },
+  {
+   "fieldname": "defaults",
+   "fieldtype": "JSON",
+   "label": "Kullanıcı varsayılanları"
+  },
+  {
+   "fieldname": "delivery",
+   "fieldtype": "Select",
+   "label": "Gönderim",
+   "options": "aninda\nozetlenebilir",
+   "default": "aninda",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "mandatory",
+   "fieldtype": "Check",
+   "label": "Zorunlu",
+   "default": "0",
+   "read_only": 1
+  },
+  {
+   "fieldname": "enabled",
+   "fieldtype": "Check",
+   "label": "Etkin",
+   "default": "1"
+  },
+  {
+   "fieldname": "sort_order",
+   "fieldtype": "Int",
+   "label": "Sıra",
+   "default": "0"
+  },
+  {
+   "fieldname": "revision",
+   "fieldtype": "Int",
+   "label": "Revizyon",
+   "default": "0",
+   "read_only": 1
+  }
+ ],
+ "links": [],
+ "modified": "2026-10-03 20:30:00.000000",
+ "modified_by": "Administrator",
+ "module": "Tradehub Core",
+ "name": "Platform Notification Event",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "report": 1,
+   "export": 1
+  }
+ ],
+ "sort_field": "sort_order",
+ "sort_order": "ASC",
+ "states": [],
+ "track_changes": 0,
+ "autoname": "field:event_key",
+ "naming_rule": "By fieldname"
+}

@@ -381,3 +381,6 @@ tradehub_core.patches.v15_9_65_media_image_facts
 
 # --- Mağaza görselleri türevleri: seller.logo w64/128/256 + company.cover_image 384–1920 WebP, oran korunur; eski AVIF profilleri kapanır ---
 tradehub_core.patches.v15_9_66_store_image_webp_profiles
+
+# --- Bildirim sistemi: olay kataloğu, şablon taslakları, iki içerik rolü (atanmaz), gönderim indeksleri ---
+tradehub_core.patches.v15_9_67_notification_catalog_seed

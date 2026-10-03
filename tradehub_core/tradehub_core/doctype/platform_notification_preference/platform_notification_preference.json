@@ -1,0 +1,99 @@
+{
+ "actions": [],
+ "creation": "2026-10-03 20:30:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "user",
+  "events",
+  "frequency",
+  "quiet_enabled",
+  "quiet_start",
+  "quiet_end",
+  "quiet_timezone",
+  "legacy_migrated",
+  "revision"
+ ],
+ "fields": [
+  {
+   "fieldname": "user",
+   "fieldtype": "Link",
+   "label": "Kullanıcı",
+   "options": "User",
+   "reqd": 1,
+   "unique": 1,
+   "set_only_once": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "events",
+   "fieldtype": "JSON",
+   "label": "Olay seçimleri"
+  },
+  {
+   "fieldname": "frequency",
+   "fieldtype": "Select",
+   "label": "E-posta sıklığı",
+   "options": "instant\ndaily\nweekly",
+   "default": "instant"
+  },
+  {
+   "fieldname": "quiet_enabled",
+   "fieldtype": "Check",
+   "label": "Sessiz saat",
+   "default": "0"
+  },
+  {
+   "fieldname": "quiet_start",
+   "fieldtype": "Data",
+   "label": "Sessiz saat başlangıcı",
+   "length": 5
+  },
+  {
+   "fieldname": "quiet_end",
+   "fieldtype": "Data",
+   "label": "Sessiz saat bitişi",
+   "length": 5
+  },
+  {
+   "fieldname": "quiet_timezone",
+   "fieldtype": "Data",
+   "label": "Saat dilimi",
+   "length": 64
+  },
+  {
+   "fieldname": "legacy_migrated",
+   "fieldtype": "Check",
+   "label": "Eski tercih taşındı",
+   "default": "0",
+   "read_only": 1
+  },
+  {
+   "fieldname": "revision",
+   "fieldtype": "Int",
+   "label": "Revizyon",
+   "default": "0",
+   "read_only": 1
+  }
+ ],
+ "links": [],
+ "modified": "2026-10-03 20:30:00.000000",
+ "modified_by": "Administrator",
+ "module": "Tradehub Core",
+ "name": "Platform Notification Preference",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "report": 1,
+   "export": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 0,
+ "autoname": "field:user",
+ "naming_rule": "By fieldname"
+}

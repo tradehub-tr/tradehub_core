@@ -1,0 +1,165 @@
+{
+ "actions": [],
+ "creation": "2026-10-03 20:30:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "occurrence_id",
+  "event",
+  "user",
+  "target_ref",
+  "channel",
+  "template_version",
+  "language_requested",
+  "language_used",
+  "status",
+  "due_at",
+  "attempts",
+  "idempotency_key",
+  "provider_reference",
+  "error_code",
+  "sent_at",
+  "is_test",
+  "digest_delivery",
+  "payload"
+ ],
+ "fields": [
+  {
+   "fieldname": "occurrence_id",
+   "fieldtype": "Data",
+   "label": "Olay oluşum kimliği",
+   "length": 140,
+   "search_index": 1
+  },
+  {
+   "fieldname": "event",
+   "fieldtype": "Link",
+   "label": "Olay",
+   "options": "Platform Notification Event",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "user",
+   "fieldtype": "Link",
+   "label": "Kullanıcı",
+   "options": "User",
+   "search_index": 1
+  },
+  {
+   "fieldname": "target_ref",
+   "fieldtype": "Data",
+   "label": "Hedef (maskeli)",
+   "length": 140
+  },
+  {
+   "fieldname": "channel",
+   "fieldtype": "Select",
+   "label": "Kanal",
+   "options": "inapp\nemail\npush\nsms",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "template_version",
+   "fieldtype": "Int",
+   "label": "Şablon sürümü",
+   "default": "0"
+  },
+  {
+   "fieldname": "language_requested",
+   "fieldtype": "Data",
+   "label": "İstenen dil",
+   "length": 8
+  },
+  {
+   "fieldname": "language_used",
+   "fieldtype": "Data",
+   "label": "Kullanılan dil",
+   "length": 8
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "Durum",
+   "options": "queued\ndeferred\ndigest_pending\nsending\naccepted\nsent\ncaptured\nfailed\nskipped\ncancelled\nuncertain\ndigested",
+   "default": "queued",
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "due_at",
+   "fieldtype": "Datetime",
+   "label": "Planlanan zaman"
+  },
+  {
+   "fieldname": "attempts",
+   "fieldtype": "Int",
+   "label": "Deneme",
+   "default": "0"
+  },
+  {
+   "fieldname": "idempotency_key",
+   "fieldtype": "Data",
+   "label": "Mükerrer anahtarı",
+   "length": 140,
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "provider_reference",
+   "fieldtype": "Data",
+   "label": "Sağlayıcı referansı",
+   "length": 140
+  },
+  {
+   "fieldname": "error_code",
+   "fieldtype": "Data",
+   "label": "Hata kodu",
+   "length": 64
+  },
+  {
+   "fieldname": "sent_at",
+   "fieldtype": "Datetime",
+   "label": "Gönderim zamanı"
+  },
+  {
+   "fieldname": "is_test",
+   "fieldtype": "Check",
+   "label": "Test",
+   "default": "0"
+  },
+  {
+   "fieldname": "digest_delivery",
+   "fieldtype": "Data",
+   "label": "Özet gönderimi",
+   "length": 140
+  },
+  {
+   "fieldname": "payload",
+   "fieldtype": "JSON",
+   "label": "Bekleyen içerik"
+  }
+ ],
+ "links": [],
+ "modified": "2026-10-03 20:30:00.000000",
+ "modified_by": "Administrator",
+ "module": "Tradehub Core",
+ "name": "Platform Notification Delivery",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "report": 1,
+   "export": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 0,
+ "autoname": "hash",
+ "naming_rule": "Random"
+}

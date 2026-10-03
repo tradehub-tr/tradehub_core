@@ -395,6 +395,14 @@ def record_consent(
 	user = frappe.session.user
 	if user == "Guest":
 		frappe.throw(_("Oturum açmanız gerekir."), frappe.AuthenticationError)
+	if consent_type in ("marketing_email", "marketing_sms") and action in ("granted", "renewed"):
+		# Ticari izin verme bildirim tercihleriyle aynı kapıdan geçer: hedef var ve doğrulanmış olmalı.
+		from tradehub_core.notifications import consent_bridge, errors
+
+		try:
+			consent_bridge.assert_grantable(user, consent_bridge.CHANNEL_OF[consent_type])
+		except errors.ApiError as e:
+			frappe.throw(e.payload["message"], frappe.ValidationError)
 	name = _record(user, consent_type, action, version=version, source=source)
 	return {"name": name}
 

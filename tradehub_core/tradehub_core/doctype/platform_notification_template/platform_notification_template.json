@@ -1,0 +1,108 @@
+{
+ "actions": [],
+ "creation": "2026-10-03 20:30:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "event",
+  "draft",
+  "translation_states",
+  "published_version",
+  "draft_changed",
+  "saved_by",
+  "saved_at",
+  "review_state",
+  "review_revision",
+  "review_requested_by",
+  "representative"
+ ],
+ "fields": [
+  {
+   "fieldname": "event",
+   "fieldtype": "Link",
+   "label": "Olay",
+   "options": "Platform Notification Event",
+   "reqd": 1,
+   "unique": 1,
+   "set_only_once": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "draft",
+   "fieldtype": "JSON",
+   "label": "Taslak"
+  },
+  {
+   "fieldname": "translation_states",
+   "fieldtype": "JSON",
+   "label": "Çeviri durumları"
+  },
+  {
+   "fieldname": "published_version",
+   "fieldtype": "Link",
+   "label": "Yayındaki sürüm",
+   "options": "Platform Notification Version"
+  },
+  {
+   "fieldname": "draft_changed",
+   "fieldtype": "Check",
+   "label": "Yayınlanmamış değişiklik",
+   "default": "0"
+  },
+  {
+   "fieldname": "saved_by",
+   "fieldtype": "Link",
+   "label": "Kaydeden",
+   "options": "User"
+  },
+  {
+   "fieldname": "saved_at",
+   "fieldtype": "Datetime",
+   "label": "Kayıt zamanı"
+  },
+  {
+   "fieldname": "review_state",
+   "fieldtype": "Select",
+   "label": "Onay durumu",
+   "options": "\nonay-bekliyor"
+  },
+  {
+   "fieldname": "review_revision",
+   "fieldtype": "Int",
+   "label": "Onay istenen revizyon",
+   "default": "0"
+  },
+  {
+   "fieldname": "review_requested_by",
+   "fieldtype": "Link",
+   "label": "Onay isteyen",
+   "options": "User"
+  },
+  {
+   "fieldname": "representative",
+   "fieldtype": "Check",
+   "label": "Temsili (seed) içerik",
+   "default": "0"
+  }
+ ],
+ "links": [],
+ "modified": "2026-10-03 20:30:00.000000",
+ "modified_by": "Administrator",
+ "module": "Tradehub Core",
+ "name": "Platform Notification Template",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "report": 1,
+   "export": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 0,
+ "autoname": "field:event",
+ "naming_rule": "By fieldname"
+}

@@ -5,6 +5,7 @@ from frappe import _
 from frappe.model.document import Document
 from frappe.utils import now_datetime
 
+from tradehub_core.notifications.eventdata import generic_event_data
 from tradehub_core.utils.notify import notify
 
 ALLOWED_FILE_EXTENSIONS = (".pdf", ".jpg", ".jpeg", ".png")
@@ -244,6 +245,40 @@ class KYBVerification(Document):
 		if self.status == "Verified" and self.rejection_reason:
 			self.db_set("rejection_reason", "")
 
+	def _safe_rejection_event(self, company: str, reason: str) -> dict:
+		from tradehub_core.notifications.eventdata import safe
+
+		return safe(self._rejection_event, company, reason)
+
+	def _rejection_event(self, company: str, reason: str) -> dict:
+		"""Re-submit: eksik belge isteği (store.application_result). Diğer ret: hesap durumu."""
+		from tradehub_core.notifications.dispatch import fmt_dt
+		from tradehub_core.notifications.eventdata import absolute, generic_event_data
+
+		occurrence = f"KYB Verification:{self.name}:Rejected:{self.modified}"
+		if (self.rejection_category or "") == "Re-submit":
+			url = absolute("/pages/dashboard/kyb.html")
+			return {
+				"event_key": "store.application_result",
+				"occurrence_id": occurrence,
+				"event_data": {
+					"company_name": company,
+					"application_no": self.name,
+					"application_approved": False,
+					"documents_required": True,
+					"reviewed_at": fmt_dt(self.modified),
+					"rejection_reason": reason,
+					"documents_url": url,
+					"status_url": url,
+					"email": self.user,
+				},
+			}
+		return {
+			"event_key": "account.status",
+			"occurrence_id": occurrence,
+			"event_data": generic_event_data(self.user, company, "/pages/dashboard/kyb.html"),
+		}
+
 	def _send_status_notifications(self, previous_status: str = None):
 		"""KYB durum değişikliklerinde satıcıya ve admin'e bildirim gönder.
 
@@ -277,6 +312,9 @@ class KYBVerification(Document):
 				action_url="/pages/dashboard/kyb.html",
 				reference_doctype="KYB Verification",
 				reference_name=self.name,
+				event_key="account.status",
+				event_data=generic_event_data(self.user, company, "/pages/dashboard/kyb.html"),
+				occurrence_id=f"KYB Verification:{self.name}:Verified:{self.modified}",
 			)
 		elif self.status == "Rejected":
 			reason = self.rejection_reason or ""
@@ -289,6 +327,7 @@ class KYBVerification(Document):
 				action_url="/pages/dashboard/kyb.html",
 				reference_doctype="KYB Verification",
 				reference_name=self.name,
+				**self._safe_rejection_event(company, reason),
 			)
 		elif self.status == "Suspended":
 			notify(
@@ -302,6 +341,9 @@ class KYBVerification(Document):
 				action_url="/pages/dashboard/kyb.html",
 				reference_doctype="KYB Verification",
 				reference_name=self.name,
+				event_key="account.status",
+				event_data=generic_event_data(self.user, company, "/pages/dashboard/kyb.html"),
+				occurrence_id=f"KYB Verification:{self.name}:Suspended:{self.modified}",
 			)
 
 		# Pending'e geçişte admin'lere bildirim — her gerçek geçişte gönderilir.

@@ -2,6 +2,7 @@ import frappe
 from frappe import _
 from frappe.model.document import Document
 
+from tradehub_core.notifications.eventdata import generic_event_data
 from tradehub_core.utils.notify import notify
 
 
@@ -78,6 +79,9 @@ class RFQQuote(Document):
 				action_url=f"/buyer-dashboard?tab=rfq&rfq={self.rfq}",
 				reference_doctype="RFQ Quote",
 				reference_name=self.name,
+				event_key="rfq.quoted",
+				event_data=generic_event_data(buyer, self.rfq, f"/pages/dashboard/rfq-quotes.html?rfq={self.rfq}"),
+				occurrence_id=f"RFQ Quote:{self.name}:created",
 			)
 
 	def _notify_quote_status_change(self):

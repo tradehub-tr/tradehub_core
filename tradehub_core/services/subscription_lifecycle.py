@@ -39,6 +39,7 @@ import frappe
 from frappe.utils import cint, get_datetime, now_datetime
 
 from tradehub_core.audit import log_decision
+from tradehub_core.notifications.eventdata import generic_event_data
 from tradehub_core.services.storefront_visibility import hide_store_listings
 from tradehub_core.utils.notify import notify
 
@@ -331,6 +332,9 @@ def send_renewal_reminders() -> dict:
 					send_email=True,
 					email_subject=title,
 					email_body=message,
+					event_key="subscription.renewing",
+					event_data=generic_event_data(owner, end_str, "/panel/abonelik"),
+					occurrence_id=f"Store Subscription:{s.name}:{stage}:{s.current_period_end}",
 				)
 			# Bayrağı her durumda set et (owner bulunamasa bile sonsuz retry olmasın).
 			frappe.db.set_value("Store Subscription", s.name, flags, update_modified=False)

@@ -315,7 +315,31 @@ class SellerApplication(Document):
 			action_url="/dashboard",
 			reference_doctype="Seller Application",
 			reference_name=self.name,
+			event_key="store.application_result",
+			event_data=self._safe_application_event_data(),
+			occurrence_id=f"Seller Application:{self.name}:Approved",
 		)
+
+	def _safe_application_event_data(self) -> dict:
+		from tradehub_core.notifications.eventdata import safe
+
+		return safe(self._application_event_data)
+
+	def _application_event_data(self) -> dict:
+		from tradehub_core.notifications.dispatch import fmt_dt
+		from tradehub_core.notifications.eventdata import absolute
+
+		panel = absolute("/panel/dashboard")
+		return {
+			"company_name": self.business_name or self.applicant_user,
+			"application_no": self.name,
+			"application_approved": True,
+			"documents_required": False,
+			"approved_at": fmt_dt(self.reviewed_on or frappe.utils.now_datetime()),
+			"email": self.applicant_user,
+			"panel_url": panel,
+			"status_url": panel,
+		}
 
 	def _notify_applicant_rejected(self):
 		notify(
