@@ -1,3 +1,15 @@
+## [v1.18.3-alpha.1] - 2026-10-03 ALPHA
+
+Bu surum alphaistoc.cronbi.com'da gelistirme asamasindadir.
+
+### Eklendi
+- feat(bildirim): olay tabanlı bildirim altyapısı ekle (@ahmeetseker)
+  - Bildirim olay kataloğu, şablon yönetimi, tercih API'leri ve teslim kayıtlarını ekle; kanalların tek merkezden yönetilebilmesi sağlandı.
+  - Eski notify akışını event_key ile yeni gönderim servisine bağla; yayınlanmış şablon yoksa mevcut davranış korunuyor.
+  - Ticari izin köprüsü, sessiz saat, özet, test gönderimi ve saklama/anonymize işleriyle kullanıcı tercihi ve gizlilik akışlarını tamamla.
+  - Katalog seed patch'i, yeni DocType'lar ve birim/entegrasyon testleri ekle; şablon dili, sanitizer ve dispatch davranışı doğrulanabilir hale geldi.
+
+---
 ## [v1.18.2] - 2026-10-02 PROD
 
 Bu surum istoc.cronbi.com'da yayindadir.
